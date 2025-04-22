@@ -15,6 +15,9 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination"
+import { RegistrationFormDialog } from "@/components/registration-form-dialog"
+import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog"
+import { Plus, Pencil, Trash2, QrCode } from "lucide-react"
 
 export default function RegistrationsPage() {
   const [registrations, setRegistrations] = useState([])
@@ -23,6 +26,15 @@ export default function RegistrationsPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const { toast } = useToast()
+
+  // Form dialog state
+  const [isFormOpen, setIsFormOpen] = useState(false)
+  const [selectedRegistration, setSelectedRegistration] = useState(null)
+  const [isEdit, setIsEdit] = useState(false)
+
+  // Delete dialog state
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [registrationToDelete, setRegistrationToDelete] = useState(null)
 
   useEffect(() => {
     fetchRegistrations()
@@ -174,10 +186,99 @@ export default function RegistrationsPage() {
     }
   }
 
+  const handleAddRegistration = () => {
+    setSelectedRegistration(null)
+    setIsEdit(false)
+    setIsFormOpen(true)
+  }
+
+  const handleEditRegistration = (registration) => {
+    setSelectedRegistration(registration)
+    setIsEdit(true)
+    setIsFormOpen(true)
+  }
+
+  const handleDeleteRegistration = (registration) => {
+    setRegistrationToDelete(registration)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!registrationToDelete) return
+
+    try {
+      const response = await fetch(`/api/registrations/${registrationToDelete.id}`, {
+        method: "DELETE",
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        toast({
+          title: "Success",
+          description: "Registration deleted successfully",
+        })
+        fetchRegistrations()
+      } else {
+        toast({
+          title: "Error",
+          description: data.message || "Failed to delete registration",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "An error occurred while deleting the registration",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleManualCheckIn = async (registrationId) => {
+    try {
+      const response = await fetch("/api/manual-check-in", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ registrationId }),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        toast({
+          title: "Success",
+          description: `${data.registration.full_name} checked in successfully`,
+        })
+        fetchRegistrations()
+      } else {
+        toast({
+          title: "Error",
+          description: data.message || "Failed to check in",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "An error occurred while checking in",
+        variant: "destructive",
+      })
+    }
+  }
+
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold tracking-tight">Registrations</h1>
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-bold tracking-tight">Registrations</h1>
+          <Button onClick={handleAddRegistration}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Registration
+          </Button>
+        </div>
 
         <Card>
           <CardHeader>
@@ -246,16 +347,32 @@ export default function RegistrationsPage() {
                           </TableCell>
                           <TableCell>
                             <div className="flex space-x-2">
-                              <Button variant="outline" size="sm" onClick={() => handleGenerateQR(registration.id)}>
-                                QR Code
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => handleGenerateQR(registration.id)}
+                                title="Generate QR Code"
+                              >
+                                <QrCode className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => handleEditRegistration(registration)}
+                                title="Edit Registration"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => handleDeleteRegistration(registration)}
+                                title="Delete Registration"
+                              >
+                                <Trash2 className="h-4 w-4" />
                               </Button>
                               {!registration.checked_in && (
-                                <Button
-                                  size="sm"
-                                  onClick={() => {
-                                    // Handle manual check-in
-                                  }}
-                                >
+                                <Button size="sm" onClick={() => handleManualCheckIn(registration.id)} title="Check In">
                                   Check In
                                 </Button>
                               )}
@@ -301,6 +418,26 @@ export default function RegistrationsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Form Dialog */}
+      <RegistrationFormDialog
+        isOpen={isFormOpen}
+        onClose={() => setIsFormOpen(false)}
+        onSuccess={fetchRegistrations}
+        registration={selectedRegistration}
+        isEdit={isEdit}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteConfirmationDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => setIsDeleteDialogOpen(false)}
+        onConfirm={confirmDelete}
+        title="Delete Registration"
+        description={`Are you sure you want to delete ${
+          registrationToDelete?.full_name || "this registration"
+        }? This action cannot be undone.`}
+      />
     </AdminLayout>
   )
 }
