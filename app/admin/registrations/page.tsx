@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/pagination"
 import { RegistrationFormDialog } from "@/components/registration-form-dialog"
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog"
-import { Plus, Pencil, Trash2, QrCode } from "lucide-react"
+import { Plus, Pencil, Trash2, QrCode, RefreshCw } from "lucide-react"
 
 export default function RegistrationsPage() {
   const [registrations, setRegistrations] = useState([])
@@ -311,8 +311,22 @@ export default function RegistrationsPage() {
         </Card>
 
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle>Registration List</CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchRegistrations}
+              disabled={isLoading}
+              title="Refresh registrations"
+            >
+              {isLoading ? (
+                <span className="h-4 w-4 animate-spin mr-2">⟳</span>
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}{" "}
+              Refresh
+            </Button>
           </CardHeader>
           <CardContent>
             {isLoading ? (
