@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
-import { Search, UserCheck, Users, Clock, CalendarCheck } from "lucide-react"
+import { Search, UserCheck, Users, Clock, CalendarCheck, RefreshCw } from "lucide-react"
+import { EventSelector } from "@/components/event-selector"
 
 export default function DashboardPage() {
   const searchParams = useSearchParams()
@@ -18,12 +19,14 @@ export default function DashboardPage() {
   const [stats, setStats] = useState({
     totalRegistrations: 0,
     checkedIn: 0,
-    notCheckedIn: 0,
-    checkInsToday: 0,
+    pendingCheckIn: 0,
+    checkInRate: "0%",
     recentCheckIns: [],
+    checkInsToday: 0,
   })
   const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState(tabParam === "check-in" ? "check-in" : "overview")
+  const [selectedEventId, setSelectedEventId] = useState("")
 
   // Manual check-in state
   const [searchQuery, setSearchQuery] = useState("")
@@ -43,25 +46,30 @@ export default function DashboardPage() {
   }, [tabParam])
 
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const response = await fetch("/api/dashboard-stats")
-        const data = await response.json()
-
-        if (data.success) {
-          setStats(data.stats)
-        } else {
-          console.error("Failed to fetch dashboard stats:", data.message)
-        }
-      } catch (error) {
-        console.error("Error fetching dashboard stats:", error)
-      } finally {
-        setIsLoading(false)
-      }
+    if (selectedEventId) {
+      fetchStats()
     }
+  }, [selectedEventId])
 
-    fetchStats()
-  }, [])
+  const fetchStats = async () => {
+    try {
+      setIsLoading(true)
+      const url = selectedEventId ? `/api/dashboard-stats?event_id=${selectedEventId}` : "/api/dashboard-stats"
+
+      const response = await fetch(url)
+      const data = await response.json()
+
+      if (data.success) {
+        setStats(data.stats)
+      } else {
+        console.error("Failed to fetch dashboard stats:", data.message)
+      }
+    } catch (error) {
+      console.error("Error fetching dashboard stats:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return
@@ -108,7 +116,10 @@ export default function DashboardPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ registration_id: registrationId }),
+        body: JSON.stringify({
+          registration_id: registrationId,
+          event_id: selectedEventId || undefined,
+        }),
       })
 
       const data = await response.json()
@@ -127,11 +138,15 @@ export default function DashboardPage() {
         )
 
         // Refresh stats
-        const statsResponse = await fetch("/api/dashboard-stats")
-        const statsData = await statsResponse.json()
-        if (statsData.success) {
-          setStats(statsData.stats)
-        }
+        fetchStats()
+      } else if (data.message && data.message.includes("Already checked in")) {
+        toast({
+          title: "Already Checked In",
+          description: data.registration
+            ? `${data.registration.full_name} is already checked in today.`
+            : "This person is already checked in today.",
+          variant: "warning",
+        })
       } else {
         toast({
           title: "Error",
@@ -158,7 +173,10 @@ export default function DashboardPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ qr_code: qrCode }),
+        body: JSON.stringify({
+          qr_code: qrCode,
+          event_id: selectedEventId || undefined,
+        }),
       })
 
       const data = await response.json()
@@ -172,17 +190,13 @@ export default function DashboardPage() {
         setQrCode("")
 
         // Refresh stats
-        const statsResponse = await fetch("/api/dashboard-stats")
-        const statsData = await statsResponse.json()
-        if (statsData.success) {
-          setStats(statsData.stats)
-        }
+        fetchStats()
       } else if (data.message && data.message.includes("Already checked in")) {
         toast({
           title: "Already Checked In",
           description: data.registration
-            ? `${data.registration.full_name} is already checked in.`
-            : "This person is already checked in.",
+            ? `${data.registration.full_name} is already checked in today.`
+            : "This person is already checked in today.",
           variant: "warning",
         })
       } else {
@@ -206,6 +220,7 @@ export default function DashboardPage() {
     <AdminLayout>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+        <EventSelector value={selectedEventId} onChange={setSelectedEventId} label="" className="w-64" />
       </div>
 
       <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab} className="space-y-4">
@@ -234,11 +249,7 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{isLoading ? "..." : stats.checkedIn}</div>
-                <p className="text-xs text-muted-foreground">
-                  {isLoading
-                    ? "..."
-                    : `${((stats.checkedIn / stats.totalRegistrations) * 100 || 0).toFixed(1)}% of total`}
-                </p>
+                <p className="text-xs text-muted-foreground">{isLoading ? "..." : stats.checkInRate}</p>
               </CardContent>
             </Card>
 
@@ -248,7 +259,7 @@ export default function DashboardPage() {
                 <Clock className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{isLoading ? "..." : stats.notCheckedIn}</div>
+                <div className="text-2xl font-bold">{isLoading ? "..." : stats.pendingCheckIn}</div>
                 <p className="text-xs text-muted-foreground">Awaiting check-in</p>
               </CardContent>
             </Card>
@@ -259,7 +270,7 @@ export default function DashboardPage() {
                 <CalendarCheck className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{isLoading ? "..." : stats.checkInsToday}</div>
+                <div className="text-2xl font-bold">{isLoading ? "..." : stats.checkInsToday || 0}</div>
                 <p className="text-xs text-muted-foreground">Check-ins in the last 24 hours</p>
               </CardContent>
             </Card>
@@ -267,9 +278,19 @@ export default function DashboardPage() {
 
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
             <Card className="col-span-4">
-              <CardHeader>
-                <CardTitle>Recent Check-ins</CardTitle>
-                <CardDescription>Recent attendees who have checked in</CardDescription>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <div>
+                  <CardTitle>Recent Check-ins</CardTitle>
+                  <CardDescription>Recent attendees who have checked in</CardDescription>
+                </div>
+                <Button variant="outline" size="sm" onClick={fetchStats} disabled={isLoading} title="Refresh data">
+                  {isLoading ? (
+                    <span className="h-4 w-4 animate-spin mr-2">⟳</span>
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                  )}
+                  Refresh
+                </Button>
               </CardHeader>
               <CardContent>
                 {isLoading ? (
@@ -316,15 +337,13 @@ export default function DashboardPage() {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
                       <div>Checked In</div>
-                      <div className="font-medium">
-                        {isLoading ? "..." : `${((stats.checkedIn / stats.totalRegistrations) * 100 || 0).toFixed(1)}%`}
-                      </div>
+                      <div className="font-medium">{isLoading ? "..." : stats.checkInRate}</div>
                     </div>
                     <div className="h-2 w-full rounded-full bg-muted">
                       <div
                         className="h-2 rounded-full bg-primary"
                         style={{
-                          width: isLoading ? "0%" : `${(stats.checkedIn / stats.totalRegistrations) * 100 || 0}%`,
+                          width: isLoading ? "0%" : `${(stats.checkedIn / (stats.totalRegistrations || 1)) * 100}%`,
                         }}
                       ></div>
                     </div>
@@ -336,14 +355,16 @@ export default function DashboardPage() {
                       <div className="font-medium">
                         {isLoading
                           ? "..."
-                          : `${((stats.notCheckedIn / stats.totalRegistrations) * 100 || 0).toFixed(1)}%`}
+                          : `${((stats.pendingCheckIn / (stats.totalRegistrations || 1)) * 100).toFixed(1)}%`}
                       </div>
                     </div>
                     <div className="h-2 w-full rounded-full bg-muted">
                       <div
                         className="h-2 rounded-full bg-amber-500"
                         style={{
-                          width: isLoading ? "0%" : `${(stats.notCheckedIn / stats.totalRegistrations) * 100 || 0}%`,
+                          width: isLoading
+                            ? "0%"
+                            : `${(stats.pendingCheckIn / (stats.totalRegistrations || 1)) * 100}%`,
                         }}
                       ></div>
                     </div>

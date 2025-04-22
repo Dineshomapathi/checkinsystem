@@ -7,6 +7,7 @@ import { QrScanner } from "@/components/qr-scanner"
 import { CheckInResult } from "@/components/check-in-result"
 import { useToast } from "@/hooks/use-toast"
 import { Maximize, Minimize } from "lucide-react"
+import { EventSelector } from "@/components/event-selector"
 
 export default function CheckInPage() {
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -19,6 +20,7 @@ export default function CheckInPage() {
       table_number?: string
     }
   }>(null)
+  const [selectedEventId, setSelectedEventId] = useState("")
   const { toast } = useToast()
 
   const toggleFullScreen = () => {
@@ -60,7 +62,10 @@ export default function CheckInPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ qr_code: scannedText }),
+        body: JSON.stringify({
+          qr_code: scannedText,
+          event_id: selectedEventId || undefined,
+        }),
       })
 
       console.log("API response status:", response.status)
@@ -78,8 +83,8 @@ export default function CheckInPage() {
         toast({
           title: "Already Checked In",
           description: data.registration
-            ? `${data.registration.full_name} is already checked in.`
-            : "This person is already checked in.",
+            ? `${data.registration.full_name} is already checked in today.`
+            : "This person is already checked in today.",
           variant: "warning",
         })
       } else {
@@ -109,6 +114,9 @@ export default function CheckInPage() {
       <Card className="max-w-3xl mx-auto">
         <CardHeader>
           <CardTitle className="text-center">Event Check-in</CardTitle>
+          <div className="mt-4">
+            <EventSelector value={selectedEventId} onChange={setSelectedEventId} label="Select Event" />
+          </div>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="flex justify-between">
