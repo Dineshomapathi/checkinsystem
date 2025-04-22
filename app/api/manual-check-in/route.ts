@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getRegistrationById, checkInRegistration } from "@/lib/db"
+import { getRegistrationById, sql } from "@/lib/db"
 
 export async function POST(request: Request) {
   try {
@@ -16,12 +16,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: "Registration not found" }, { status: 404 })
     }
 
-    // Check if already checked in
-    if (registration.checked_in) {
+    // Check if already checked in today
+    const today = new Date().toISOString().split("T")[0] // Get current date in YYYY-MM-DD format
+
+    const checkInToday = await sql`
+      SELECT * FROM check_in_logs 
+      WHERE registration_id = ${registration.id}
+      AND event_id = ${event_id}
+      AND DATE(check_in_time) = ${today}
+      LIMIT 1
+    `
+
+    if (checkInToday.length > 0) {
       return NextResponse.json(
         {
           success: false,
-          message: "Already checked in",
+          message: "Already checked in today",
           registration: {
             full_name: registration.full_name,
             company: registration.company,
@@ -32,22 +42,28 @@ export async function POST(request: Request) {
       )
     }
 
-    // Update check-in status
-    const updatedRegistration = await checkInRegistration(
-      registration.id,
-      null, // TODO: Get the user ID from the session
-      event_id,
-      "manual",
-      "Manual check-in by admin",
-    )
+    // Add check-in log
+    await sql`
+      INSERT INTO check_in_logs (registration_id, event_id, checked_in_by, method, notes)
+      VALUES (${registration.id}, ${event_id}, NULL, 'manual', 'Manual check-in by admin')
+    `
+
+    // Only update the registration's checked_in status if it hasn't been checked in before
+    if (!registration.checked_in) {
+      await sql`
+        UPDATE registrations 
+        SET checked_in = true, check_in_time = NOW() 
+        WHERE id = ${registration.id}
+      `
+    }
 
     return NextResponse.json({
       success: true,
       message: "Check-in successful",
       registration: {
-        full_name: updatedRegistration.full_name,
-        company: updatedRegistration.company,
-        table_number: updatedRegistration.table_number,
+        full_name: registration.full_name,
+        company: registration.company,
+        table_number: registration.table_number,
       },
     })
   } catch (error) {

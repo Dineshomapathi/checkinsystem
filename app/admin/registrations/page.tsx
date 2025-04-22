@@ -242,7 +242,7 @@ export default function RegistrationsPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ registrationId }),
+        body: JSON.stringify({ registration_id: registrationId }), // Fix: Changed registrationId to registration_id
       })
 
       const data = await response.json()
@@ -255,9 +255,9 @@ export default function RegistrationsPage() {
         fetchRegistrations()
       } else {
         toast({
-          title: "Error",
+          title: data.message.includes("Already checked in") ? "Already Checked In" : "Error",
           description: data.message || "Failed to check in",
-          variant: "destructive",
+          variant: data.message.includes("Already checked in") ? "default" : "destructive",
         })
       }
     } catch (error) {

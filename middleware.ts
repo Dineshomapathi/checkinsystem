@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
-import { requireAuth, requireAdmin } from "./lib/auth"
+import { requireAuth, requireAdmin, getUserRole } from "./lib/auth"
 
 export function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname
@@ -29,9 +29,22 @@ export function middleware(request: NextRequest) {
     return response
   }
 
+  // Role-based access control
+  const userRole = getUserRole(request)
+
   // Protect admin routes
   if (path.startsWith("/admin")) {
-    return requireAdmin(request)
+    // Admin-only routes
+    if (
+      path.startsWith("/admin/users") ||
+      path.startsWith("/admin/excel-upload") ||
+      path.startsWith("/admin/settings")
+    ) {
+      return requireAdmin(request)
+    }
+
+    // Routes accessible by both admin and user roles
+    return requireAuth(request)
   }
 
   // Protect check-in route (optional, remove if you want it public)

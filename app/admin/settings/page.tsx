@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Loader2, Upload, Copy } from "lucide-react"
 import { AdminLayout } from "@/components/admin-layout"
+import { PurgeSystemDialog } from "@/components/purge-system-dialog"
 
 export default function SettingsPage() {
   const [backgroundImage, setBackgroundImage] = useState<string>("")
@@ -18,6 +19,7 @@ export default function SettingsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [baseUrl, setBaseUrl] = useState("")
   const { toast } = useToast()
+  const [isPurgeDialogOpen, setIsPurgeDialogOpen] = useState(false)
 
   useEffect(() => {
     // Set base URL
@@ -418,9 +420,29 @@ export default function SettingsPage() {
                 <p className="text-sm text-muted-foreground">More settings will be added in future updates.</p>
               </CardContent>
             </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>System Maintenance</CardTitle>
+                <CardDescription>Manage system data and perform maintenance operations.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-lg font-medium mb-2">Data Management</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Use these tools to manage system data. Warning: Some operations cannot be undone.
+                    </p>
+                    <Button variant="destructive" onClick={() => setIsPurgeDialogOpen(true)}>
+                      Purge System Data
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>
+      <PurgeSystemDialog isOpen={isPurgeDialogOpen} onClose={() => setIsPurgeDialogOpen(false)} />
     </AdminLayout>
   )
 }

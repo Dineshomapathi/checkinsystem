@@ -135,3 +135,22 @@ export function requireAdmin(req: NextRequest) {
 
   return NextResponse.next()
 }
+
+export function getUserRole(req?: NextRequest) {
+  const user = getAuthUser(req)
+  return user?.role || null
+}
+
+export function requireRole(req: NextRequest, allowedRoles: string[]) {
+  const user = getAuthUser(req)
+
+  if (!user) {
+    return NextResponse.redirect(new URL("/login", req.url))
+  }
+
+  if (!allowedRoles.includes(user.role)) {
+    return NextResponse.redirect(new URL("/", req.url))
+  }
+
+  return NextResponse.next()
+}

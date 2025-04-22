@@ -62,8 +62,8 @@
     "xlsx": "latest",
     "@neondatabase/serverless": "latest",
     "html5-qrcode": "latest",
-    "@vercel/blob": "latest",
-    "bcryptjs": "latest"
+    "bcryptjs": "latest",
+    "@vercel/blob": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",
