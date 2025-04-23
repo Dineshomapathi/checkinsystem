@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { del } from "@vercel/blob"
 import { getAuthUser } from "@/lib/auth"
+// Import the purgeRegistrations function
+import { purgeRegistrations } from "@/lib/db"
 
 export async function POST(request: Request) {
   try {
@@ -19,16 +21,16 @@ export async function POST(request: Request) {
       case "full":
         // Purge everything except users table
         await sql`
-          -- Delete check-in logs
+          -- Delete check-in logs first (they reference registrations and events)
           DELETE FROM check_in_logs;
           
-          -- Delete event registrations
+          -- Delete event registrations (they reference both events and registrations)
           DELETE FROM event_registrations;
           
-          -- Delete registrations
+          -- Now we can delete registrations
           DELETE FROM registrations;
           
-          -- Delete events
+          -- Finally delete events
           DELETE FROM events;
           
           -- Reset settings except background_image
@@ -58,18 +60,20 @@ export async function POST(request: Request) {
         break
 
       case "registrations":
-        // Purge only registrations and check-in logs
-        await sql`
-          -- Delete check-in logs
-          DELETE FROM check_in_logs;
-          
-          -- Delete event registrations
-          DELETE FROM event_registrations;
-          
-          -- Delete registrations
-          DELETE FROM registrations;
-        `
-        result.message = "All registrations and check-in logs have been purged successfully"
+        // Purge only registrations and check-in logs, respecting foreign key constraints
+        try {
+          const result = await purgeRegistrations()
+          return NextResponse.json(result)
+        } catch (error) {
+          console.error("Error during registrations purge:", error)
+          return NextResponse.json(
+            {
+              success: false,
+              message: "Error purging registrations: " + (error instanceof Error ? error.message : String(error)),
+            },
+            { status: 500 },
+          )
+        }
         break
 
       case "event":
@@ -77,47 +81,78 @@ export async function POST(request: Request) {
           return NextResponse.json({ success: false, message: "Event ID is required" }, { status: 400 })
         }
 
-        // Purge specific event data
-        await sql`
-          -- Delete check-in logs for this event
-          DELETE FROM check_in_logs WHERE event_id = ${eventId};
-          
-          -- Get registration IDs for this event
-          WITH event_regs AS (
-            SELECT registration_id FROM event_registrations WHERE event_id = ${eventId}
-          )
-          
-          -- Delete registrations for this event
-          DELETE FROM registrations 
-          WHERE id IN (SELECT registration_id FROM event_regs);
-          
-          -- Delete event registrations
-          DELETE FROM event_registrations WHERE event_id = ${eventId};
-          
-          -- Delete the event
-          DELETE FROM events WHERE id = ${eventId};
-        `
+        // Purge specific event data, respecting foreign key constraints
+        try {
+          // First delete check-in logs for this event
+          await sql`DELETE FROM check_in_logs WHERE event_id = ${eventId};`
 
+          // Get registration IDs for this event
+          const eventRegistrations = await sql`
+            SELECT registration_id FROM event_registrations WHERE event_id = ${eventId}
+          `
+
+          // Delete event registrations
+          await sql`DELETE FROM event_registrations WHERE event_id = ${eventId};`
+
+          // Delete registrations for this event if they're not linked to other events
+          if (eventRegistrations.length > 0) {
+            const registrationIds = eventRegistrations.map((er) => er.registration_id)
+
+            for (const regId of registrationIds) {
+              // Check if registration is linked to other events
+              const otherEventLinks = await sql`
+                SELECT COUNT(*) as count FROM event_registrations 
+                WHERE registration_id = ${regId} AND event_id != ${eventId}
+              `
+
+              // Only delete if not linked to other events
+              if (otherEventLinks[0].count === 0) {
+                await sql`DELETE FROM registrations WHERE id = ${regId};`
+              }
+            }
+          }
+
+          // Delete the event
+          await sql`DELETE FROM events WHERE id = ${eventId};`
+        } catch (error) {
+          console.error("Error during event purge:", error)
+          return NextResponse.json(
+            {
+              success: false,
+              message: "Error purging event: " + (error instanceof Error ? error.message : String(error)),
+            },
+            { status: 500 },
+          )
+        }
         break
 
       case "neon":
-        // Purge database only
-        await sql`
-          -- Delete check-in logs
-          DELETE FROM check_in_logs;
-          
-          -- Delete event registrations
-          DELETE FROM event_registrations;
-          
-          -- Delete registrations
-          DELETE FROM registrations;
-          
-          -- Delete events
-          DELETE FROM events;
-          
-          -- Reset settings except background_image
-          UPDATE settings SET value = NULL WHERE key != 'background_image';
-        `
+        // Purge database only, respecting foreign key constraints
+        try {
+          // Delete check-in logs first
+          await sql`DELETE FROM check_in_logs;`
+
+          // Delete event registrations
+          await sql`DELETE FROM event_registrations;`
+
+          // Delete registrations
+          await sql`DELETE FROM registrations;`
+
+          // Delete events
+          await sql`DELETE FROM events;`
+
+          // Reset settings except background_image
+          await sql`UPDATE settings SET value = NULL WHERE key != 'background_image';`
+        } catch (error) {
+          console.error("Error during database purge:", error)
+          return NextResponse.json(
+            {
+              success: false,
+              message: "Error purging database: " + (error instanceof Error ? error.message : String(error)),
+            },
+            { status: 500 },
+          )
+        }
         break
 
       case "blob":
@@ -149,6 +184,12 @@ export async function POST(request: Request) {
     return NextResponse.json(result)
   } catch (error) {
     console.error("Error during purge operation:", error)
-    return NextResponse.json({ success: false, message: "Error during purge operation" }, { status: 500 })
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Error during purge operation: " + (error instanceof Error ? error.message : String(error)),
+      },
+      { status: 500 },
+    )
   }
 }

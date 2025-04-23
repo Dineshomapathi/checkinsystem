@@ -60,10 +60,10 @@
     "zod": "^3.24.1",
     "qrcode": "latest",
     "xlsx": "latest",
-    "@neondatabase/serverless": "latest",
     "html5-qrcode": "latest",
     "bcryptjs": "latest",
-    "@vercel/blob": "latest"
+    "@vercel/blob": "latest",
+    "@neondatabase/serverless": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",

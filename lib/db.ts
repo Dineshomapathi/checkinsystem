@@ -198,3 +198,22 @@ export async function getRecentCheckIns(limit = 5) {
     LIMIT ${limit}
   `
 }
+
+// Function to purge registrations safely
+export async function purgeRegistrations() {
+  try {
+    // First delete check-in logs (they reference registrations)
+    await sql`DELETE FROM check_in_logs;`
+
+    // Then delete event_registrations (they reference registrations)
+    await sql`DELETE FROM event_registrations;`
+
+    // Finally delete registrations
+    await sql`DELETE FROM registrations;`
+
+    return { success: true, message: "All registrations and related data have been purged successfully" }
+  } catch (error) {
+    console.error("Error during registrations purge:", error)
+    throw error
+  }
+}
