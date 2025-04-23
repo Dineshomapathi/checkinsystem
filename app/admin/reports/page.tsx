@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { EventSelector } from "@/components/event-selector"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
-import { FileSpreadsheet, FileText, Download } from "lucide-react"
+import { FileSpreadsheet, Download } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
 export default function ReportsPage() {
@@ -17,12 +17,12 @@ export default function ReportsPage() {
   const [isGenerating, setIsGenerating] = useState(false)
   const { toast } = useToast()
 
-  const generateReport = async (format: "excel" | "pdf") => {
+  const generateReport = async () => {
     setIsGenerating(true)
 
     try {
       // Build the URL with query parameters
-      let url = `/api/reports/export?format=${format}`
+      let url = `/api/reports/export?format=excel`
 
       if (eventId) {
         url += `&event_id=${eventId}`
@@ -41,7 +41,7 @@ export default function ReportsPage() {
 
       toast({
         title: "Success",
-        description: `${format.toUpperCase()} report is being downloaded`,
+        description: "Excel report is being downloaded",
       })
     } catch (error) {
       toast({
@@ -63,7 +63,7 @@ export default function ReportsPage() {
           <CardHeader>
             <CardTitle>Generate Check-in Report</CardTitle>
             <CardDescription>
-              Generate a report of all registrations with their check-in status and time.
+              Generate a simple report of all checked-in registrations with their check-in time.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -83,19 +83,9 @@ export default function ReportsPage() {
               </div>
 
               <div className="flex flex-col md:flex-row gap-4 mt-6">
-                <Button onClick={() => generateReport("excel")} disabled={isGenerating} className="flex-1">
+                <Button onClick={generateReport} disabled={isGenerating} className="flex-1">
                   <FileSpreadsheet className="mr-2 h-4 w-4" />
                   {isGenerating ? "Generating..." : "Export to Excel"}
-                </Button>
-
-                <Button
-                  onClick={() => generateReport("pdf")}
-                  disabled={isGenerating}
-                  variant="outline"
-                  className="flex-1"
-                >
-                  <FileText className="mr-2 h-4 w-4" />
-                  Export to PDF
                 </Button>
               </div>
             </div>
@@ -126,9 +116,9 @@ export default function ReportsPage() {
               </div>
 
               <div className="border rounded-lg p-4">
-                <h3 className="text-lg font-medium mb-2">All Registrations</h3>
+                <h3 className="text-lg font-medium mb-2">All Check-ins</h3>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Complete list of all registrations with check-in status.
+                  Complete list of all checked-in registrations with timestamps.
                 </p>
                 <Button
                   variant="outline"

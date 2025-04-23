@@ -58,14 +58,12 @@
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^0.9.6",
     "zod": "^3.24.1",
-    "jspdf": "latest",
     "qrcode": "latest",
     "xlsx": "latest",
     "html5-qrcode": "latest",
     "bcryptjs": "latest",
     "@vercel/blob": "latest",
-    "@neondatabase/serverless": "latest",
-    "jspdf-autotable": "latest"
+    "@neondatabase/serverless": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",
