@@ -18,110 +18,109 @@ export async function GET(request: Request) {
     // Choose query based on report type
     if (reportType === "checkins") {
       // Check-in report
-      let query = `
-        SELECT 
-          cl.id as check_in_id, 
-          cl.check_in_time, 
-          r.id as registration_id,
-          r.full_name, 
-          r.email, 
-          r.company,
-          r.table_number,
-          e.name as event_name,
-          u.name as checked_in_by_name,
-          cl.method as check_in_method
-        FROM check_in_logs cl
-        JOIN registrations r ON cl.registration_id = r.id
-        JOIN events e ON cl.event_id = e.id
-        LEFT JOIN users u ON cl.checked_in_by = u.id
-      `
+      try {
+        // Build the query without parameterized values for debugging
+        let baseQuery = `
+          SELECT 
+            cl.id as check_in_id, 
+            cl.check_in_time, 
+            r.id as registration_id,
+            r.full_name, 
+            r.email, 
+            r.company,
+            r.table_number,
+            e.name as event_name,
+            u.name as checked_in_by_name,
+            cl.method as check_in_method
+          FROM check_in_logs cl
+          JOIN registrations r ON cl.registration_id = r.id
+          JOIN events e ON cl.event_id = e.id
+          LEFT JOIN users u ON cl.checked_in_by = u.id
+        `
 
-      const whereConditions = []
-      const queryParams = []
-      let paramIndex = 1
+        const conditions = []
 
-      if (eventId) {
-        whereConditions.push(`e.id = $${paramIndex}`)
-        queryParams.push(eventId)
-        paramIndex++
+        if (eventId) {
+          conditions.push(`e.id = ${eventId}`)
+        }
+
+        if (dateFrom) {
+          conditions.push(`DATE(cl.check_in_time) >= '${dateFrom}'`)
+        }
+
+        if (dateTo) {
+          conditions.push(`DATE(cl.check_in_time) <= '${dateTo}'`)
+        }
+
+        if (conditions.length > 0) {
+          baseQuery += ` WHERE ${conditions.join(" AND ")}`
+        }
+
+        baseQuery += " ORDER BY cl.check_in_time DESC"
+
+        console.log("Check-in report query:", baseQuery)
+
+        // Execute the query directly
+        result = await sql.unsafe(baseQuery)
+        console.log(`Check-in query returned ${result.length} rows`)
+      } catch (error) {
+        console.error("Error executing check-in query:", error)
       }
-
-      if (dateFrom) {
-        whereConditions.push(`DATE(cl.check_in_time) >= $${paramIndex}`)
-        queryParams.push(dateFrom)
-        paramIndex++
-      }
-
-      if (dateTo) {
-        whereConditions.push(`DATE(cl.check_in_time) <= $${paramIndex}`)
-        queryParams.push(dateTo)
-        paramIndex++
-      }
-
-      if (whereConditions.length > 0) {
-        query += " WHERE " + whereConditions.join(" AND ")
-      }
-
-      query += " ORDER BY cl.check_in_time DESC"
-
-      result = await sql.unsafe(query, queryParams)
     } else {
       // Registrations report (default)
-      let query = `
-        SELECT 
-          r.id,
-          r.full_name,
-          r.email,
-          r.phone,
-          r.company,
-          r.roles,
-          r.table_number,
-          r.subsidiary,
-          r.vendor_details,
-          r.checked_in,
-          r.check_in_time,
-          r.created_at,
-          e.name as event_name
-        FROM 
-          registrations r
-        LEFT JOIN 
-          event_registrations er ON r.id = er.registration_id
-        LEFT JOIN 
-          events e ON er.event_id = e.id
-      `
+      try {
+        let baseQuery = `
+          SELECT 
+            r.id,
+            r.full_name,
+            r.email,
+            r.phone,
+            r.company,
+            r.roles,
+            r.table_number,
+            r.subsidiary,
+            r.vendor_details,
+            r.checked_in,
+            r.check_in_time,
+            r.created_at,
+            e.name as event_name
+          FROM 
+            registrations r
+          LEFT JOIN 
+            event_registrations er ON r.id = er.registration_id
+          LEFT JOIN 
+            events e ON er.event_id = e.id
+        `
 
-      const whereConditions = []
-      const queryParams = []
-      let paramIndex = 1
+        const conditions = []
 
-      if (eventId) {
-        whereConditions.push(`e.id = $${paramIndex}`)
-        queryParams.push(eventId)
-        paramIndex++
+        if (eventId) {
+          conditions.push(`e.id = ${eventId}`)
+        }
+
+        if (dateFrom) {
+          conditions.push(`DATE(r.created_at) >= '${dateFrom}'`)
+        }
+
+        if (dateTo) {
+          conditions.push(`DATE(r.created_at) <= '${dateTo}'`)
+        }
+
+        if (conditions.length > 0) {
+          baseQuery += ` WHERE ${conditions.join(" AND ")}`
+        }
+
+        baseQuery += " ORDER BY r.full_name"
+
+        console.log("Registration report query:", baseQuery)
+
+        // Execute the query directly
+        result = await sql.unsafe(baseQuery)
+        console.log(`Registration query returned ${result.length} rows`)
+      } catch (error) {
+        console.error("Error executing registration query:", error)
       }
-
-      if (dateFrom) {
-        whereConditions.push(`DATE(r.created_at) >= $${paramIndex}`)
-        queryParams.push(dateFrom)
-        paramIndex++
-      }
-
-      if (dateTo) {
-        whereConditions.push(`DATE(r.created_at) <= $${paramIndex}`)
-        queryParams.push(dateTo)
-        paramIndex++
-      }
-
-      if (whereConditions.length > 0) {
-        query += " WHERE " + whereConditions.join(" AND ")
-      }
-
-      query += " ORDER BY r.full_name"
-
-      result = await sql.unsafe(query, queryParams)
     }
-
-    console.log(`Query returned ${result ? result.length : 0} rows`)
 
     // Ensure result is an array
     if (!result || !Array.isArray(result)) {

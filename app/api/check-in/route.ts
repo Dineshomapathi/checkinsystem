@@ -21,7 +21,7 @@ export async function POST(request: Request) {
       )
     }
 
-    console.log("Processing check-in for QR code:", qr_code)
+    console.log("Processing check-in for QR code:", qr_code, "Event ID:", event_id)
 
     // Find the registration by hash (stored in qr_code field)
     const registration = await getRegistrationByHash(qr_code)
@@ -78,21 +78,33 @@ export async function POST(request: Request) {
     }
 
     // Update check-in status
-    console.log("Checking in registration:", registration.id)
+    console.log("Checking in registration:", registration.id, "for event:", event_id)
 
     // Add check-in log without updating the registration's checked_in status
-    await sql`
-      INSERT INTO check_in_logs (registration_id, event_id, checked_in_by, method, notes)
-      VALUES (${registration.id}, ${event_id}, NULL, 'qr', 'Self check-in via QR code')
-    `
+    try {
+      await sql`
+        INSERT INTO check_in_logs (registration_id, event_id, checked_in_by, method, notes)
+        VALUES (${registration.id}, ${event_id}, NULL, 'qr', 'Self check-in via QR code')
+      `
+      console.log("Check-in log created successfully")
+    } catch (error) {
+      console.error("Error creating check-in log:", error)
+      throw error
+    }
 
     // Only update the registration's checked_in status if it hasn't been checked in before
     if (!registration.checked_in) {
-      await sql`
-        UPDATE registrations 
-        SET checked_in = true, check_in_time = NOW() 
-        WHERE id = ${registration.id}
-      `
+      try {
+        await sql`
+          UPDATE registrations 
+          SET checked_in = true, check_in_time = NOW() 
+          WHERE id = ${registration.id}
+        `
+        console.log("Registration checked_in status updated")
+      } catch (error) {
+        console.error("Error updating registration checked_in status:", error)
+        throw error
+      }
     }
 
     console.log("Check-in successful for registration:", registration.id)

@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
@@ -18,8 +18,43 @@ export default function ExcelUploadContent() {
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploadResult, setUploadResult] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
-  const [eventId, setEventId] = useState<string>("1")
+  const [eventId, setEventId] = useState<string>("")
+  const [events, setEvents] = useState<any[]>([])
+  const [isLoadingEvents, setIsLoadingEvents] = useState(true)
   const { toast } = useToast()
+
+  useEffect(() => {
+    fetchEvents()
+  }, [])
+
+  const fetchEvents = async () => {
+    try {
+      setIsLoadingEvents(true)
+      const response = await fetch("/api/events")
+      const data = await response.json()
+
+      if (data.success) {
+        setEvents(data.events)
+        if (data.events.length > 0) {
+          setEventId(data.events[0].id.toString())
+        }
+      } else {
+        toast({
+          title: "Error",
+          description: data.message || "Failed to load events",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "An error occurred while fetching events",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoadingEvents(false)
+    }
+  }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -32,6 +67,11 @@ export default function ExcelUploadContent() {
   const handleUpload = async () => {
     if (!file) {
       setError("Please select a file to upload")
+      return
+    }
+
+    if (!eventId) {
+      setError("Please select an event")
       return
     }
 
@@ -104,6 +144,18 @@ export default function ExcelUploadContent() {
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
+            <CardTitle>Sample Data</CardTitle>
+            <CardDescription>View sample Excel data to understand the expected format</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => (window.location.href = "/api/test-excel-parse")} disabled={isUploading}>
+              View Sample Data
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>Upload Registrations</CardTitle>
             <CardDescription>
               Upload an Excel file with registration data. The file should include columns for Company, Name, Email,
@@ -141,15 +193,24 @@ export default function ExcelUploadContent() {
 
               <div className="space-y-2">
                 <Label htmlFor="event-id">Select Event</Label>
-                <Select value={eventId} onValueChange={setEventId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select an event" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">Annual Conference 2023</SelectItem>
-                    {/* Add more events as needed */}
-                  </SelectContent>
-                </Select>
+                {isLoadingEvents ? (
+                  <div className="text-sm text-muted-foreground">Loading events...</div>
+                ) : events.length > 0 ? (
+                  <Select value={eventId} onValueChange={setEventId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select an event" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {events.map((event) => (
+                        <SelectItem key={event.id} value={event.id.toString()}>
+                          {event.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="text-sm text-muted-foreground">No events found. Please create an event first.</div>
+                )}
               </div>
 
               <div className="border-2 border-dashed rounded-lg p-6 text-center">
@@ -204,61 +265,61 @@ export default function ExcelUploadContent() {
                 <Button onClick={downloadTemplate} variant="outline">
                   Download Template
                 </Button>
-                <Button onClick={handleUpload} disabled={!file || isUploading}>
+                <Button onClick={handleUpload} disabled={!file || isUploading || !eventId || events.length === 0}>
                   {isUploading ? "Uploading..." : "Upload File"}
                 </Button>
               </div>
             </div>
           </CardContent>
         </Card>
+      </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Upload Results</CardTitle>
-            <CardDescription>View the results of your Excel file upload</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {uploadResult ? (
-              <div className="space-y-4">
-                <Alert variant="default" className="bg-green-50 border-green-200">
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                  <AlertTitle className="text-green-800">Upload Successful</AlertTitle>
-                  <AlertDescription className="text-green-700">{uploadResult.message}</AlertDescription>
-                </Alert>
+      <Card>
+        <CardHeader>
+          <CardTitle>Upload Results</CardTitle>
+          <CardDescription>View the results of your Excel file upload</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {uploadResult ? (
+            <div className="space-y-4">
+              <Alert variant="default" className="bg-green-50 border-green-200">
+                <CheckCircle className="h-4 w-4 text-green-600" />
+                <AlertTitle className="text-green-800">Upload Successful</AlertTitle>
+                <AlertDescription className="text-green-700">{uploadResult.message}</AlertDescription>
+              </Alert>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-muted p-4 rounded-md text-center">
-                    <p className="text-sm text-muted-foreground">Total Registrations</p>
-                    <p className="text-2xl font-bold">{uploadResult.results.total}</p>
-                  </div>
-                  <div className="bg-muted p-4 rounded-md text-center">
-                    <p className="text-sm text-muted-foreground">Successfully Processed</p>
-                    <p className="text-2xl font-bold text-green-600">{uploadResult.results.successful}</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-muted p-4 rounded-md text-center">
+                  <p className="text-sm text-muted-foreground">Total Registrations</p>
+                  <p className="text-2xl font-bold">{uploadResult.results.total}</p>
+                </div>
+                <div className="bg-muted p-4 rounded-md text-center">
+                  <p className="text-sm text-muted-foreground">Successfully Processed</p>
+                  <p className="text-2xl font-bold text-green-600">{uploadResult.results.successful}</p>
+                </div>
+              </div>
+
+              {uploadResult.results.failed > 0 && (
+                <div>
+                  <h3 className="font-semibold mb-2">Errors ({uploadResult.results.failed})</h3>
+                  <div className="bg-red-50 border border-red-200 rounded-md p-3 max-h-[200px] overflow-y-auto">
+                    <ul className="list-disc pl-5 space-y-1 text-sm text-red-700">
+                      {uploadResult.results.errors.map((error: string, index: number) => (
+                        <li key={index}>{error}</li>
+                      ))}
+                    </ul>
                   </div>
                 </div>
-
-                {uploadResult.results.failed > 0 && (
-                  <div>
-                    <h3 className="font-semibold mb-2">Errors ({uploadResult.results.failed})</h3>
-                    <div className="bg-red-50 border border-red-200 rounded-md p-3 max-h-[200px] overflow-y-auto">
-                      <ul className="list-disc pl-5 space-y-1 text-sm text-red-700">
-                        {uploadResult.results.errors.map((error: string, index: number) => (
-                          <li key={index}>{error}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-center py-12 text-muted-foreground">
-                <FileSpreadsheet className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                <p>Upload a file to see results</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-12 text-muted-foreground">
+              <FileSpreadsheet className="h-12 w-12 mx-auto mb-3 opacity-20" />
+              <p>Upload a file to see results</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

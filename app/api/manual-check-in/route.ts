@@ -9,10 +9,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: "Registration ID is required" }, { status: 400 })
     }
 
+    console.log("Processing manual check-in for registration ID:", registration_id, "Event ID:", event_id)
+
     // Find the registration by ID
     const registration = await getRegistrationById(registration_id)
 
     if (!registration) {
+      console.log("Registration not found:", registration_id)
       return NextResponse.json({ success: false, message: "Registration not found" }, { status: 404 })
     }
 
@@ -28,6 +31,7 @@ export async function POST(request: Request) {
     `
 
     if (checkInToday.length > 0) {
+      console.log("Registration already checked in today:", registration.id)
       return NextResponse.json(
         {
           success: false,
@@ -43,18 +47,30 @@ export async function POST(request: Request) {
     }
 
     // Add check-in log
-    await sql`
-      INSERT INTO check_in_logs (registration_id, event_id, checked_in_by, method, notes)
-      VALUES (${registration.id}, ${event_id}, NULL, 'manual', 'Manual check-in by admin')
-    `
+    try {
+      await sql`
+        INSERT INTO check_in_logs (registration_id, event_id, checked_in_by, method, notes)
+        VALUES (${registration.id}, ${event_id}, NULL, 'manual', 'Manual check-in by admin')
+      `
+      console.log("Check-in log created successfully")
+    } catch (error) {
+      console.error("Error creating check-in log:", error)
+      throw error
+    }
 
     // Only update the registration's checked_in status if it hasn't been checked in before
     if (!registration.checked_in) {
-      await sql`
-        UPDATE registrations 
-        SET checked_in = true, check_in_time = NOW() 
-        WHERE id = ${registration.id}
-      `
+      try {
+        await sql`
+          UPDATE registrations 
+          SET checked_in = true, check_in_time = NOW() 
+          WHERE id = ${registration.id}
+        `
+        console.log("Registration checked_in status updated")
+      } catch (error) {
+        console.error("Error updating registration checked_in status:", error)
+        throw error
+      }
     }
 
     return NextResponse.json({
