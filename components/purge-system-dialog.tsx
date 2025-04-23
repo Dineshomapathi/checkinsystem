@@ -109,6 +109,16 @@ export function PurgeSystemDialog({ isOpen, onClose }: PurgeSystemDialogProps) {
             </div>
 
             <div className="flex items-start space-x-2 mt-4">
+              <RadioGroupItem value="registrations" id="registrations" />
+              <div className="grid gap-1.5">
+                <Label htmlFor="registrations">Purge Registrations Only</Label>
+                <p className="text-sm text-muted-foreground">
+                  Delete all registrations and check-in logs, but keep events and other data.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start space-x-2 mt-4">
               <RadioGroupItem value="neon" id="neon" />
               <div className="grid gap-1.5">
                 <Label htmlFor="neon">Purge Database Only</Label>

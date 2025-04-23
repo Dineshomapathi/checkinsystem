@@ -57,6 +57,21 @@ export async function POST(request: Request) {
 
         break
 
+      case "registrations":
+        // Purge only registrations and check-in logs
+        await sql`
+          -- Delete check-in logs
+          DELETE FROM check_in_logs;
+          
+          -- Delete event registrations
+          DELETE FROM event_registrations;
+          
+          -- Delete registrations
+          DELETE FROM registrations;
+        `
+        result.message = "All registrations and check-in logs have been purged successfully"
+        break
+
       case "event":
         if (!eventId) {
           return NextResponse.json({ success: false, message: "Event ID is required" }, { status: 400 })
