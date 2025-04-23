@@ -59,11 +59,11 @@
     "vaul": "^0.9.6",
     "zod": "^3.24.1",
     "qrcode": "latest",
-    "xlsx": "latest",
     "html5-qrcode": "latest",
     "bcryptjs": "latest",
     "@vercel/blob": "latest",
-    "@neondatabase/serverless": "latest"
+    "@neondatabase/serverless": "latest",
+    "xlsx": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",

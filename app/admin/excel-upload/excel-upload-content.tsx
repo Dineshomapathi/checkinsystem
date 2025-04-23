@@ -309,6 +309,47 @@ export default function ExcelUploadContent() {
                       ))}
                     </ul>
                   </div>
+
+                  {uploadResult.results.failedRecords && uploadResult.results.failedRecords.length > 0 && (
+                    <div className="mt-4">
+                      <h3 className="font-semibold mb-2">Failed Records</h3>
+                      <div className="border rounded-md overflow-hidden">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th
+                                scope="col"
+                                className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                              >
+                                Name
+                              </th>
+                              <th
+                                scope="col"
+                                className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                              >
+                                Email
+                              </th>
+                              <th
+                                scope="col"
+                                className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                              >
+                                Reason
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {uploadResult.results.failedRecords.map((item, index) => (
+                              <tr key={index}>
+                                <td className="px-3 py-2 text-xs">{item.record.name || "-"}</td>
+                                <td className="px-3 py-2 text-xs">{item.record.email || "-"}</td>
+                                <td className="px-3 py-2 text-xs text-red-600">{item.reason}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

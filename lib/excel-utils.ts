@@ -86,6 +86,7 @@ export function generateExcelTemplate(): ArrayBuffer {
   return XLSX.write(wb, { type: "array", bookType: "xlsx" })
 }
 
+// Update the processRegistrationsUpload function to track failed records
 export async function processRegistrationsUpload(
   registrations: RegistrationData[],
   eventId?: number,
@@ -94,12 +95,14 @@ export async function processRegistrationsUpload(
   successful: number
   failed: number
   errors: string[]
+  failedRecords: Array<{ record: RegistrationData; reason: string }>
 }> {
   const results = {
     total: registrations.length,
     successful: 0,
     failed: 0,
     errors: [] as string[],
+    failedRecords: [] as Array<{ record: RegistrationData; reason: string }>,
   }
 
   // Process each registration individually without a transaction
@@ -109,7 +112,10 @@ export async function processRegistrationsUpload(
       // Validate required fields
       if (!reg.name || !reg.email || !reg.hash) {
         results.failed++
-        results.errors.push(`Missing required fields for ${reg.email || "unknown email"}`)
+        const reason =
+          `Missing required fields: ${!reg.name ? "name" : ""}${!reg.email ? " email" : ""}${!reg.hash ? " hash" : ""}`.trim()
+        results.errors.push(`Missing required fields for ${reg.email || reg.name || "unknown record"}`)
+        results.failedRecords.push({ record: reg, reason })
         continue
       }
 
@@ -158,7 +164,12 @@ export async function processRegistrationsUpload(
     } catch (error) {
       console.error("Error processing registration:", error)
       results.failed++
-      results.errors.push(`Error processing ${reg.email}: ${(error as Error).message}`)
+      const errorMessage = (error as Error).message
+      results.errors.push(`Error processing ${reg.email}: ${errorMessage}`)
+      results.failedRecords.push({
+        record: reg,
+        reason: `Database error: ${errorMessage.substring(0, 100)}${errorMessage.length > 100 ? "..." : ""}`,
+      })
     }
   }
 
