@@ -9,11 +9,13 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { FileSpreadsheet, FileText, Download } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 
 export default function ReportsPage() {
   const [eventId, setEventId] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  const [reportType, setReportType] = useState("registrations")
   const [isGenerating, setIsGenerating] = useState(false)
   const { toast } = useToast()
 
@@ -22,7 +24,7 @@ export default function ReportsPage() {
 
     try {
       // Build the URL with query parameters
-      let url = `/api/reports/export?format=${format}`
+      let url = `/api/reports/export?format=${format}&type=${reportType}`
 
       if (eventId) {
         url += `&event_id=${eventId}`
@@ -75,6 +77,20 @@ export default function ReportsPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Report Type</Label>
+                <RadioGroup value={reportType} onValueChange={setReportType} className="flex space-x-4">
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="registrations" id="registrations" />
+                    <Label htmlFor="registrations">Registrations</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="checkins" id="checkins" />
+                    <Label htmlFor="checkins">Check-ins</Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <EventSelector value={eventId} onChange={setEventId} label="Event (Optional)" />
 
@@ -121,7 +137,14 @@ export default function ReportsPage() {
                 <p className="text-sm text-muted-foreground mb-4">
                   List of all registrations with their details and check-in status.
                 </p>
-                <Button variant="outline" className="w-full" onClick={() => generateReport("excel")}>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => {
+                    setReportType("registrations")
+                    generateReport("excel")
+                  }}
+                >
                   <Download className="mr-2 h-4 w-4" />
                   Download Report
                 </Button>
@@ -132,7 +155,14 @@ export default function ReportsPage() {
                 <p className="text-sm text-muted-foreground mb-4">
                   Detailed report of all check-ins with timestamps and check-in method.
                 </p>
-                <Button variant="outline" className="w-full" onClick={() => generateReport("excel")}>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => {
+                    setReportType("checkins")
+                    generateReport("excel")
+                  }}
+                >
                   <Download className="mr-2 h-4 w-4" />
                   Download Report
                 </Button>

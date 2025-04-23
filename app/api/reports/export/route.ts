@@ -9,62 +9,125 @@ export async function GET(request: Request) {
     const eventId = searchParams.get("event_id")
     const dateFrom = searchParams.get("date_from")
     const dateTo = searchParams.get("date_to")
+    const reportType = searchParams.get("type") || "registrations" // Default to registrations report
 
-    // Build the query based on filters
-    let query = `
-      SELECT 
-        r.id,
-        r.full_name,
-        r.email,
-        r.company,
-        r.roles,
-        r.table_number,
-        r.subsidiary,
-        r.vendor_details,
-        r.checked_in,
-        r.check_in_time,
-        e.name as event_name,
-        cl.check_in_time as last_check_in,
-        cl.method as check_in_method,
-        u.name as checked_in_by
-      FROM 
-        registrations r
-      LEFT JOIN 
-        event_registrations er ON r.id = er.registration_id
-      LEFT JOIN 
-        events e ON er.event_id = e.id
-      LEFT JOIN 
-        check_in_logs cl ON r.id = cl.registration_id
-      LEFT JOIN 
-        users u ON cl.checked_in_by = u.id
-    `
+    console.log("Generating report:", { format, eventId, dateFrom, dateTo, reportType })
 
-    const whereConditions = []
-    const queryParams = []
+    let result = []
 
-    if (eventId) {
-      whereConditions.push("e.id = $1")
-      queryParams.push(eventId)
+    // Choose query based on report type
+    if (reportType === "checkins") {
+      // Check-in report
+      let query = `
+        SELECT 
+          cl.id as check_in_id, 
+          cl.check_in_time, 
+          r.id as registration_id,
+          r.full_name, 
+          r.email, 
+          r.company,
+          r.table_number,
+          e.name as event_name,
+          u.name as checked_in_by_name,
+          cl.method as check_in_method
+        FROM check_in_logs cl
+        JOIN registrations r ON cl.registration_id = r.id
+        JOIN events e ON cl.event_id = e.id
+        LEFT JOIN users u ON cl.checked_in_by = u.id
+      `
+
+      const whereConditions = []
+      const queryParams = []
+      let paramIndex = 1
+
+      if (eventId) {
+        whereConditions.push(`e.id = $${paramIndex}`)
+        queryParams.push(eventId)
+        paramIndex++
+      }
+
+      if (dateFrom) {
+        whereConditions.push(`DATE(cl.check_in_time) >= $${paramIndex}`)
+        queryParams.push(dateFrom)
+        paramIndex++
+      }
+
+      if (dateTo) {
+        whereConditions.push(`DATE(cl.check_in_time) <= $${paramIndex}`)
+        queryParams.push(dateTo)
+        paramIndex++
+      }
+
+      if (whereConditions.length > 0) {
+        query += " WHERE " + whereConditions.join(" AND ")
+      }
+
+      query += " ORDER BY cl.check_in_time DESC"
+
+      result = await sql.unsafe(query, queryParams)
+    } else {
+      // Registrations report (default)
+      let query = `
+        SELECT 
+          r.id,
+          r.full_name,
+          r.email,
+          r.phone,
+          r.company,
+          r.roles,
+          r.table_number,
+          r.subsidiary,
+          r.vendor_details,
+          r.checked_in,
+          r.check_in_time,
+          r.created_at,
+          e.name as event_name
+        FROM 
+          registrations r
+        LEFT JOIN 
+          event_registrations er ON r.id = er.registration_id
+        LEFT JOIN 
+          events e ON er.event_id = e.id
+      `
+
+      const whereConditions = []
+      const queryParams = []
+      let paramIndex = 1
+
+      if (eventId) {
+        whereConditions.push(`e.id = $${paramIndex}`)
+        queryParams.push(eventId)
+        paramIndex++
+      }
+
+      if (dateFrom) {
+        whereConditions.push(`DATE(r.created_at) >= $${paramIndex}`)
+        queryParams.push(dateFrom)
+        paramIndex++
+      }
+
+      if (dateTo) {
+        whereConditions.push(`DATE(r.created_at) <= $${paramIndex}`)
+        queryParams.push(dateTo)
+        paramIndex++
+      }
+
+      if (whereConditions.length > 0) {
+        query += " WHERE " + whereConditions.join(" AND ")
+      }
+
+      query += " ORDER BY r.full_name"
+
+      result = await sql.unsafe(query, queryParams)
     }
 
-    if (dateFrom) {
-      whereConditions.push(`DATE(cl.check_in_time) >= $${queryParams.length + 1}`)
-      queryParams.push(dateFrom)
+    console.log(`Query returned ${result ? result.length : 0} rows`)
+
+    // Ensure result is an array
+    if (!result || !Array.isArray(result)) {
+      console.error("Query result is not an array:", result)
+      result = []
     }
-
-    if (dateTo) {
-      whereConditions.push(`DATE(cl.check_in_time) <= $${queryParams.length + 1}`)
-      queryParams.push(dateTo)
-    }
-
-    if (whereConditions.length > 0) {
-      query += " WHERE " + whereConditions.join(" AND ")
-    }
-
-    query += " ORDER BY r.full_name"
-
-    // Execute the query
-    const result = await sql.unsafe(query, queryParams)
 
     // Format the data based on the requested format
     if (format === "excel") {
@@ -75,7 +138,7 @@ export async function GET(request: Request) {
       const ws = XLSX.utils.json_to_sheet(result)
 
       // Add the worksheet to the workbook
-      XLSX.utils.book_append_sheet(wb, ws, "Registrations")
+      XLSX.utils.book_append_sheet(wb, ws, reportType === "checkins" ? "Check-ins" : "Registrations")
 
       // Generate Excel file
       const excelBuffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" })
@@ -84,7 +147,7 @@ export async function GET(request: Request) {
       return new NextResponse(excelBuffer, {
         headers: {
           "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          "Content-Disposition": "attachment; filename=registrations-report.xlsx",
+          "Content-Disposition": `attachment; filename=${reportType}-report.xlsx`,
         },
       })
     } else if (format === "pdf") {

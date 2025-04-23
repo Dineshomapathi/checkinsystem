@@ -31,6 +31,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   try {
     const id = Number.parseInt(params.id)
     const body = await request.json()
+    const eventId = body.event_id
 
     if (isNaN(id)) {
       return NextResponse.json({ success: false, message: "Invalid registration ID" }, { status: 400 })
@@ -39,6 +40,11 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     // Validate required fields
     if (!body.full_name || !body.email) {
       return NextResponse.json({ success: false, message: "Name and email are required fields" }, { status: 400 })
+    }
+
+    // Validate event ID
+    if (!eventId) {
+      return NextResponse.json({ success: false, message: "Event ID is required" }, { status: 400 })
     }
 
     // Check if registration exists
@@ -94,6 +100,25 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       RETURNING *
     `
 
+    // Update event association if needed
+    // First check if the registration is already associated with this event
+    const existingEventReg = await sql`
+      SELECT * FROM event_registrations 
+      WHERE registration_id = ${id} AND event_id = ${eventId}
+      LIMIT 1
+    `
+
+    if (existingEventReg.length === 0) {
+      // Delete existing event associations
+      await sql`DELETE FROM event_registrations WHERE registration_id = ${id}`
+
+      // Create new event association
+      await sql`
+        INSERT INTO event_registrations (event_id, registration_id)
+        VALUES (${eventId}, ${id})
+      `
+    }
+
     return NextResponse.json({
       success: true,
       message: "Registration updated successfully",
@@ -122,10 +147,14 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
       return NextResponse.json({ success: false, message: "Registration not found" }, { status: 404 })
     }
 
+    // Delete event associations
+    await sql`DELETE FROM event_registrations WHERE registration_id = ${id}`
+
+    // Delete check-in logs
+    await sql`DELETE FROM check_in_logs WHERE registration_id = ${id}`
+
     // Delete registration
-    await sql`
-      DELETE FROM registrations WHERE id = ${id}
-    `
+    await sql`DELETE FROM registrations WHERE id = ${id}`
 
     return NextResponse.json({
       success: true,

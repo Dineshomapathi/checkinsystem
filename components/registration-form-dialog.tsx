@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2 } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface RegistrationFormDialogProps {
   isOpen: boolean
@@ -27,6 +28,8 @@ export function RegistrationFormDialog({
 }: RegistrationFormDialogProps) {
   const { toast } = useToast()
   const [isLoading, setIsLoading] = useState(false)
+  const [events, setEvents] = useState([])
+  const [selectedEventId, setSelectedEventId] = useState("")
   const [formData, setFormData] = useState({
     full_name: "",
     email: "",
@@ -38,6 +41,12 @@ export function RegistrationFormDialog({
     vendor_details: "",
     qr_code: "",
   })
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchEvents()
+    }
+  }, [isOpen])
 
   useEffect(() => {
     if (registration && isEdit) {
@@ -52,6 +61,11 @@ export function RegistrationFormDialog({
         vendor_details: registration.vendor_details || "",
         qr_code: registration.qr_code || "",
       })
+
+      // If editing, fetch the associated event
+      if (registration.id) {
+        fetchRegistrationEvent(registration.id)
+      }
     } else {
       // Reset form for new registration
       setFormData({
@@ -65,8 +79,42 @@ export function RegistrationFormDialog({
         vendor_details: "",
         qr_code: "",
       })
+      setSelectedEventId("")
     }
   }, [registration, isEdit, isOpen])
+
+  const fetchEvents = async () => {
+    try {
+      const response = await fetch("/api/events")
+      const data = await response.json()
+
+      if (data.success) {
+        setEvents(data.events)
+
+        // If there are events and no event is selected, select the first one
+        if (data.events.length > 0 && !selectedEventId && !isEdit) {
+          setSelectedEventId(data.events[0].id.toString())
+        }
+      } else {
+        console.error("Failed to fetch events:", data.message)
+      }
+    } catch (error) {
+      console.error("Error fetching events:", error)
+    }
+  }
+
+  const fetchRegistrationEvent = async (registrationId) => {
+    try {
+      const response = await fetch(`/api/registrations/${registrationId}/events`)
+      const data = await response.json()
+
+      if (data.success && data.events.length > 0) {
+        setSelectedEventId(data.events[0].id.toString())
+      }
+    } catch (error) {
+      console.error("Error fetching registration events:", error)
+    }
+  }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -89,6 +137,17 @@ export function RegistrationFormDialog({
         return
       }
 
+      // Validate event selection
+      if (!selectedEventId) {
+        toast({
+          title: "Error",
+          description: "Please select an event",
+          variant: "destructive",
+        })
+        setIsLoading(false)
+        return
+      }
+
       // Generate QR code hash if not provided
       if (!formData.qr_code) {
         // Use email as the hash if not provided
@@ -98,12 +157,18 @@ export function RegistrationFormDialog({
       const url = isEdit ? `/api/registrations/${registration.id}` : "/api/registrations"
       const method = isEdit ? "PUT" : "POST"
 
+      // Add event_id to the request
+      const requestData = {
+        ...formData,
+        event_id: Number(selectedEventId),
+      }
+
       const response = await fetch(url, {
         method,
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(requestData),
       })
 
       const data = await response.json()
@@ -142,6 +207,21 @@ export function RegistrationFormDialog({
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="event">Event *</Label>
+              <Select value={selectedEventId} onValueChange={setSelectedEventId} required>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select an event" />
+                </SelectTrigger>
+                <SelectContent>
+                  {events.map((event) => (
+                    <SelectItem key={event.id} value={event.id.toString()}>
+                      {event.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="full_name" className="text-right">
                 Name *

@@ -6,19 +6,44 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const page = Number.parseInt(searchParams.get("page") || "1")
     const limit = Number.parseInt(searchParams.get("limit") || "10")
+    const eventId = searchParams.get("event_id")
 
     // Calculate offset
     const offset = (page - 1) * limit
 
-    // Get registrations with pagination
-    const registrations = await sql`
-      SELECT * FROM registrations
-      ORDER BY created_at DESC
-      LIMIT ${limit} OFFSET ${offset}
-    `
+    let registrations
+    let countResult
 
-    // Get total count for pagination
-    const countResult = await sql`SELECT COUNT(*) as total FROM registrations`
+    if (eventId) {
+      // Get registrations for a specific event
+      registrations = await sql`
+        SELECT r.* 
+        FROM registrations r
+        JOIN event_registrations er ON r.id = er.registration_id
+        WHERE er.event_id = ${Number.parseInt(eventId)}
+        ORDER BY r.created_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `
+
+      // Get total count for pagination
+      countResult = await sql`
+        SELECT COUNT(*) as total 
+        FROM registrations r
+        JOIN event_registrations er ON r.id = er.registration_id
+        WHERE er.event_id = ${Number.parseInt(eventId)}
+      `
+    } else {
+      // Get all registrations
+      registrations = await sql`
+        SELECT * FROM registrations
+        ORDER BY created_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `
+
+      // Get total count for pagination
+      countResult = await sql`SELECT COUNT(*) as total FROM registrations`
+    }
+
     const total = Number.parseInt(countResult[0].total)
 
     // Calculate total pages
@@ -41,10 +66,16 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
+    const eventId = body.event_id
 
     // Validate required fields
     if (!body.full_name || !body.email) {
       return NextResponse.json({ success: false, message: "Name and email are required fields" }, { status: 400 })
+    }
+
+    // Validate event ID
+    if (!eventId) {
+      return NextResponse.json({ success: false, message: "Event ID is required" }, { status: 400 })
     }
 
     // Check if email already exists
@@ -100,6 +131,12 @@ export async function POST(request: Request) {
         false
       )
       RETURNING *
+    `
+
+    // Associate registration with event
+    await sql`
+      INSERT INTO event_registrations (event_id, registration_id)
+      VALUES (${eventId}, ${result[0].id})
     `
 
     return NextResponse.json({

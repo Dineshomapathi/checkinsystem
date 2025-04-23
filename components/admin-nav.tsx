@@ -12,6 +12,7 @@ import {
   UserPlus,
   FileSpreadsheet,
   Camera,
+  Calendar,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -36,6 +37,7 @@ export function AdminNav({ setSidebarOpen, sidebarOpen }: AdminNavProps) {
     },
     { name: "Manual Check-in", href: "/admin/dashboard?tab=check-in", icon: QrCode, active: isCheckInTab },
     { name: "Camera Check-in", href: "/camera-check-in", icon: Camera, active: pathname === "/camera-check-in" },
+    { name: "Events", href: "/admin/events", icon: Calendar, active: pathname === "/admin/events" },
     { name: "Registrations", href: "/admin/registrations", icon: Users, active: pathname === "/admin/registrations" },
     { name: "Platform Users", href: "/admin/users", icon: UserPlus, active: pathname === "/admin/users" },
     {
