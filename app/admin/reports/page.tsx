@@ -9,13 +9,11 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { FileSpreadsheet, FileText, Download } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 
 export default function ReportsPage() {
   const [eventId, setEventId] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
-  const [reportType, setReportType] = useState("registrations")
   const [isGenerating, setIsGenerating] = useState(false)
   const { toast } = useToast()
 
@@ -24,7 +22,7 @@ export default function ReportsPage() {
 
     try {
       // Build the URL with query parameters
-      let url = `/api/reports/export?format=${format}&type=${reportType}`
+      let url = `/api/reports/export?format=${format}`
 
       if (eventId) {
         url += `&event_id=${eventId}`
@@ -38,20 +36,13 @@ export default function ReportsPage() {
         url += `&date_to=${dateTo}`
       }
 
-      // For Excel, trigger a download
-      if (format === "excel") {
-        window.location.href = url
-        toast({
-          title: "Success",
-          description: "Excel report is being downloaded",
-        })
-      } else {
-        // For PDF, we'll show a message for now
-        toast({
-          title: "Information",
-          description: "PDF export is not implemented yet",
-        })
-      }
+      // Trigger download
+      window.location.href = url
+
+      toast({
+        title: "Success",
+        description: `${format.toUpperCase()} report is being downloaded`,
+      })
     } catch (error) {
       toast({
         title: "Error",
@@ -59,38 +50,24 @@ export default function ReportsPage() {
         variant: "destructive",
       })
     } finally {
-      setIsGenerating(false)
+      setTimeout(() => setIsGenerating(false), 1000)
     }
   }
 
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold tracking-tight">Reports</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Check-in Reports</h1>
 
         <Card>
           <CardHeader>
-            <CardTitle>Generate Reports</CardTitle>
+            <CardTitle>Generate Check-in Report</CardTitle>
             <CardDescription>
-              Generate reports of registrations and check-ins. Filter by event and date range.
+              Generate a report of all registrations with their check-in status and time.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Report Type</Label>
-                <RadioGroup value={reportType} onValueChange={setReportType} className="flex space-x-4">
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="registrations" id="registrations" />
-                    <Label htmlFor="registrations">Registrations</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="checkins" id="checkins" />
-                    <Label htmlFor="checkins">Check-ins</Label>
-                  </div>
-                </RadioGroup>
-              </div>
-
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <EventSelector value={eventId} onChange={setEventId} label="Event (Optional)" />
 
@@ -127,44 +104,41 @@ export default function ReportsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Report Types</CardTitle>
-            <CardDescription>Different types of reports available in the system</CardDescription>
+            <CardTitle>Quick Reports</CardTitle>
+            <CardDescription>Generate pre-configured reports with a single click</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="border rounded-lg p-4">
-                <h3 className="text-lg font-medium mb-2">Registration Report</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  List of all registrations with their details and check-in status.
-                </p>
+                <h3 className="text-lg font-medium mb-2">Today's Check-ins</h3>
+                <p className="text-sm text-muted-foreground mb-4">List of all registrations checked in today.</p>
                 <Button
                   variant="outline"
                   className="w-full"
                   onClick={() => {
-                    setReportType("registrations")
-                    generateReport("excel")
+                    const today = new Date().toISOString().split("T")[0]
+                    window.location.href = `/api/reports/export?format=excel&date_from=${today}&date_to=${today}`
                   }}
                 >
                   <Download className="mr-2 h-4 w-4" />
-                  Download Report
+                  Download Excel
                 </Button>
               </div>
 
               <div className="border rounded-lg p-4">
-                <h3 className="text-lg font-medium mb-2">Check-in Report</h3>
+                <h3 className="text-lg font-medium mb-2">All Registrations</h3>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Detailed report of all check-ins with timestamps and check-in method.
+                  Complete list of all registrations with check-in status.
                 </p>
                 <Button
                   variant="outline"
                   className="w-full"
                   onClick={() => {
-                    setReportType("checkins")
-                    generateReport("excel")
+                    window.location.href = `/api/reports/export?format=excel`
                   }}
                 >
                   <Download className="mr-2 h-4 w-4" />
-                  Download Report
+                  Download Excel
                 </Button>
               </div>
             </div>
