@@ -9,9 +9,13 @@ interface RegistrationData {
   vendor_details?: string
   subsidiary?: string
   hash: string
+  rowIndex?: number // Track the original row index
 }
 
-export async function parseExcelFile(file: ArrayBuffer): Promise<RegistrationData[]> {
+export async function parseExcelFile(file: ArrayBuffer): Promise<{
+  registrations: RegistrationData[]
+  skippedRows: Array<{ rowIndex: number; data: any; reason: string }>
+}> {
   try {
     // Read the Excel file
     const workbook = XLSX.read(file, { type: "array" })
@@ -22,28 +26,45 @@ export async function parseExcelFile(file: ArrayBuffer): Promise<RegistrationDat
     // Convert to JSON
     const data = XLSX.utils.sheet_to_json(worksheet)
 
+    const registrations: RegistrationData[] = []
+    const skippedRows: Array<{ rowIndex: number; data: any; reason: string }> = []
+
     // Map the data to our RegistrationData interface
-    return data
-      .map((row: any) => {
-        // Handle different possible column names
-        return {
-          company: row["Company"] || row["company"] || "",
-          name: row["Name"] || row["name"] || row["Full Name"] || row["full_name"] || "",
-          email: row["Email"] || row["email"] || "",
-          roles: row["Roles"] || row["roles"] || row["Role"] || row["role"] || "",
-          vendor_details: row["Vendor details"] || row["vendor_details"] || row["Vendor Details"] || "",
-          subsidiary: row["Subsidary"] || row["Subsidiary"] || row["subsidiary"] || "",
-          hash: row["Hash"] || row["hash"] || "",
-        }
-      })
-      .filter((reg) => {
-        // Filter out rows without required fields
-        if (!reg.name || !reg.email || !reg.hash) {
-          console.warn(`Skipping row with missing required fields: ${JSON.stringify(reg)}`)
-          return false
-        }
-        return true
-      })
+    data.forEach((row: any, index: number) => {
+      // Handle different possible column names
+      const registration = {
+        company: row["Company"] || row["company"] || "",
+        name: row["Name"] || row["name"] || row["Full Name"] || row["full_name"] || "",
+        email: row["Email"] || row["email"] || "",
+        roles: row["Roles"] || row["roles"] || row["Role"] || row["role"] || "",
+        vendor_details: row["Vendor details"] || row["vendor_details"] || row["Vendor Details"] || "",
+        subsidiary: row["Subsidary"] || row["Subsidiary"] || row["subsidiary"] || "",
+        hash: row["Hash"] || row["hash"] || "",
+        rowIndex: index + 2, // +2 because index is 0-based and we're accounting for the header row
+      }
+
+      // Check for required fields
+      if (!registration.name || !registration.email || !registration.hash) {
+        const missingFields = []
+        if (!registration.name) missingFields.push("Name")
+        if (!registration.email) missingFields.push("Email")
+        if (!registration.hash) missingFields.push("Hash")
+
+        skippedRows.push({
+          rowIndex: registration.rowIndex,
+          data: row,
+          reason: `Missing required fields: ${missingFields.join(", ")}`,
+        })
+
+        console.warn(
+          `Skipping row ${registration.rowIndex} with missing required fields: ${JSON.stringify(registration)}`,
+        )
+      } else {
+        registrations.push(registration)
+      }
+    })
+
+    return { registrations, skippedRows }
   } catch (error) {
     console.error("Error parsing Excel file:", error)
     throw new Error("Failed to parse Excel file")
@@ -89,36 +110,30 @@ export function generateExcelTemplate(): ArrayBuffer {
 // Update the processRegistrationsUpload function to track failed records
 export async function processRegistrationsUpload(
   registrations: RegistrationData[],
+  skippedRows: Array<{ rowIndex: number; data: any; reason: string }>,
   eventId?: number,
 ): Promise<{
   total: number
   successful: number
   failed: number
+  skipped: number
   errors: string[]
   failedRecords: Array<{ record: RegistrationData; reason: string }>
+  skippedRecords: Array<{ rowIndex: number; data: any; reason: string }>
 }> {
   const results = {
-    total: registrations.length,
+    total: registrations.length + skippedRows.length,
     successful: 0,
     failed: 0,
+    skipped: skippedRows.length,
     errors: [] as string[],
     failedRecords: [] as Array<{ record: RegistrationData; reason: string }>,
+    skippedRecords: skippedRows,
   }
 
   // Process each registration individually without a transaction
-  // This avoids the "a.ll.begin is not a function" error
   for (const reg of registrations) {
     try {
-      // Validate required fields
-      if (!reg.name || !reg.email || !reg.hash) {
-        results.failed++
-        const reason =
-          `Missing required fields: ${!reg.name ? "name" : ""}${!reg.email ? " email" : ""}${!reg.hash ? " hash" : ""}`.trim()
-        results.errors.push(`Missing required fields for ${reg.email || reg.name || "unknown record"}`)
-        results.failedRecords.push({ record: reg, reason })
-        continue
-      }
-
       // Insert the registration using the hash as the QR code
       const newRegistration = await sql`
         INSERT INTO registrations (
@@ -165,7 +180,7 @@ export async function processRegistrationsUpload(
       console.error("Error processing registration:", error)
       results.failed++
       const errorMessage = (error as Error).message
-      results.errors.push(`Error processing ${reg.email}: ${errorMessage}`)
+      results.errors.push(`Error processing ${reg.email} (row ${reg.rowIndex}): ${errorMessage}`)
       results.failedRecords.push({
         record: reg,
         reason: `Database error: ${errorMessage.substring(0, 100)}${errorMessage.length > 100 ? "..." : ""}`,

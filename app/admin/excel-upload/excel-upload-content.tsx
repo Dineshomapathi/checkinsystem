@@ -7,10 +7,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertCircle, CheckCircle, FileSpreadsheet } from "lucide-react"
+import { AlertCircle, CheckCircle, FileSpreadsheet, Info } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export default function ExcelUploadContent() {
   const [file, setFile] = useState<File | null>(null)
@@ -21,6 +22,7 @@ export default function ExcelUploadContent() {
   const [eventId, setEventId] = useState<string>("")
   const [events, setEvents] = useState<any[]>([])
   const [isLoadingEvents, setIsLoadingEvents] = useState(true)
+  const [activeTab, setActiveTab] = useState("summary")
   const { toast } = useToast()
 
   useEffect(() => {
@@ -109,6 +111,7 @@ export default function ExcelUploadContent() {
 
       if (data.success) {
         setUploadResult(data)
+        setActiveTab("summary")
         toast({
           title: "Upload Successful",
           description: data.message,
@@ -274,13 +277,13 @@ export default function ExcelUploadContent() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Upload Results</CardTitle>
-          <CardDescription>View the results of your Excel file upload</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {uploadResult ? (
+      {uploadResult && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Upload Results</CardTitle>
+            <CardDescription>View the results of your Excel file upload</CardDescription>
+          </CardHeader>
+          <CardContent>
             <div className="space-y-4">
               <Alert variant="default" className="bg-green-50 border-green-200">
                 <CheckCircle className="h-4 w-4 text-green-600" />
@@ -288,35 +291,74 @@ export default function ExcelUploadContent() {
                 <AlertDescription className="text-green-700">{uploadResult.message}</AlertDescription>
               </Alert>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-4 gap-4">
                 <div className="bg-muted p-4 rounded-md text-center">
-                  <p className="text-sm text-muted-foreground">Total Registrations</p>
+                  <p className="text-sm text-muted-foreground">Total Records</p>
                   <p className="text-2xl font-bold">{uploadResult.results.total}</p>
                 </div>
                 <div className="bg-muted p-4 rounded-md text-center">
                   <p className="text-sm text-muted-foreground">Successfully Processed</p>
                   <p className="text-2xl font-bold text-green-600">{uploadResult.results.successful}</p>
                 </div>
+                <div className="bg-muted p-4 rounded-md text-center">
+                  <p className="text-sm text-muted-foreground">Skipped</p>
+                  <p className="text-2xl font-bold text-amber-600">{uploadResult.results.skipped || 0}</p>
+                </div>
+                <div className="bg-muted p-4 rounded-md text-center">
+                  <p className="text-sm text-muted-foreground">Failed</p>
+                  <p className="text-2xl font-bold text-red-600">{uploadResult.results.failed}</p>
+                </div>
               </div>
 
-              {uploadResult.results.failed > 0 && (
-                <div>
-                  <h3 className="font-semibold mb-2">Errors ({uploadResult.results.failed})</h3>
-                  <div className="bg-red-50 border border-red-200 rounded-md p-3 max-h-[200px] overflow-y-auto">
-                    <ul className="list-disc pl-5 space-y-1 text-sm text-red-700">
-                      {uploadResult.results.errors.map((error: string, index: number) => (
-                        <li key={index}>{error}</li>
-                      ))}
-                    </ul>
-                  </div>
+              {(uploadResult.results.failed > 0 || uploadResult.results.skipped > 0) && (
+                <Tabs value={activeTab} onValueChange={setActiveTab}>
+                  <TabsList className="mb-4">
+                    <TabsTrigger value="summary">Summary</TabsTrigger>
+                    {uploadResult.results.skipped > 0 && (
+                      <TabsTrigger value="skipped">Skipped Records ({uploadResult.results.skipped})</TabsTrigger>
+                    )}
+                    {uploadResult.results.failed > 0 && (
+                      <TabsTrigger value="failed">Failed Records ({uploadResult.results.failed})</TabsTrigger>
+                    )}
+                  </TabsList>
 
-                  {uploadResult.results.failedRecords && uploadResult.results.failedRecords.length > 0 && (
-                    <div className="mt-4">
-                      <h3 className="font-semibold mb-2">Failed Records</h3>
+                  <TabsContent value="summary">
+                    {uploadResult.results.errors && uploadResult.results.errors.length > 0 && (
+                      <div>
+                        <h3 className="font-semibold mb-2">Errors ({uploadResult.results.errors.length})</h3>
+                        <div className="bg-red-50 border border-red-200 rounded-md p-3 max-h-[200px] overflow-y-auto">
+                          <ul className="list-disc pl-5 space-y-1 text-sm text-red-700">
+                            {uploadResult.results.errors.map((error: string, index: number) => (
+                              <li key={index}>{error}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    )}
+
+                    {uploadResult.results.skipped > 0 && (
+                      <Alert className="mt-4 bg-amber-50 border-amber-200">
+                        <Info className="h-4 w-4 text-amber-600" />
+                        <AlertDescription className="text-amber-700">
+                          {uploadResult.results.skipped} records were skipped during import. These records did not meet
+                          the required criteria. Click the "Skipped Records" tab to see details.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </TabsContent>
+
+                  {uploadResult.results.skipped > 0 && (
+                    <TabsContent value="skipped">
                       <div className="border rounded-md overflow-hidden">
                         <table className="min-w-full divide-y divide-gray-200">
                           <thead className="bg-gray-50">
                             <tr>
+                              <th
+                                scope="col"
+                                className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                              >
+                                Row
+                              </th>
                               <th
                                 scope="col"
                                 className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
@@ -338,29 +380,74 @@ export default function ExcelUploadContent() {
                             </tr>
                           </thead>
                           <tbody className="bg-white divide-y divide-gray-200">
-                            {uploadResult.results.failedRecords.map((item, index) => (
-                              <tr key={index}>
-                                <td className="px-3 py-2 text-xs">{item.record.name || "-"}</td>
-                                <td className="px-3 py-2 text-xs">{item.record.email || "-"}</td>
-                                <td className="px-3 py-2 text-xs text-red-600">{item.reason}</td>
-                              </tr>
-                            ))}
+                            {uploadResult.results.skippedRecords &&
+                              uploadResult.results.skippedRecords.map((item: any, index: number) => (
+                                <tr key={index}>
+                                  <td className="px-3 py-2 text-xs">{item.rowIndex}</td>
+                                  <td className="px-3 py-2 text-xs">{item.data.Name || item.data.name || "-"}</td>
+                                  <td className="px-3 py-2 text-xs">{item.data.Email || item.data.email || "-"}</td>
+                                  <td className="px-3 py-2 text-xs text-amber-600">{item.reason}</td>
+                                </tr>
+                              ))}
                           </tbody>
                         </table>
                       </div>
-                    </div>
+                    </TabsContent>
                   )}
-                </div>
+
+                  {uploadResult.results.failed > 0 && (
+                    <TabsContent value="failed">
+                      <div className="border rounded-md overflow-hidden">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th
+                                scope="col"
+                                className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                              >
+                                Row
+                              </th>
+                              <th
+                                scope="col"
+                                className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                              >
+                                Name
+                              </th>
+                              <th
+                                scope="col"
+                                className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                              >
+                                Email
+                              </th>
+                              <th
+                                scope="col"
+                                className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                              >
+                                Reason
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {uploadResult.results.failedRecords &&
+                              uploadResult.results.failedRecords.map((item: any, index: number) => (
+                                <tr key={index}>
+                                  <td className="px-3 py-2 text-xs">{item.record.rowIndex || "-"}</td>
+                                  <td className="px-3 py-2 text-xs">{item.record.name || "-"}</td>
+                                  <td className="px-3 py-2 text-xs">{item.record.email || "-"}</td>
+                                  <td className="px-3 py-2 text-xs text-red-600">{item.reason}</td>
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </TabsContent>
+                  )}
+                </Tabs>
               )}
             </div>
-          ) : (
-            <div className="text-center py-12 text-muted-foreground">
-              <FileSpreadsheet className="h-12 w-12 mx-auto mb-3 opacity-20" />
-              <p>Upload a file to see results</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

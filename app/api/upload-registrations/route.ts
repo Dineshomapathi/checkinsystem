@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     const fileBuffer = await file.arrayBuffer()
 
     // Parse the Excel file
-    const registrations = await parseExcelFile(fileBuffer)
+    const { registrations, skippedRows } = await parseExcelFile(fileBuffer)
 
     if (registrations.length === 0) {
       return NextResponse.json(
@@ -23,19 +23,20 @@ export async function POST(request: Request) {
           success: false,
           message:
             "No valid registrations found in the file. Make sure the file has the required columns: Name, Email, and Hash.",
+          skippedRows,
         },
         { status: 400 },
       )
     }
 
-    console.log(`Processing ${registrations.length} registrations...`)
+    console.log(`Processing ${registrations.length} registrations, skipped ${skippedRows.length} rows...`)
 
     // Process the registrations
-    const results = await processRegistrationsUpload(registrations, eventId)
+    const results = await processRegistrationsUpload(registrations, skippedRows, eventId)
 
     return NextResponse.json({
       success: true,
-      message: `Successfully processed ${results.successful} out of ${results.total} registrations`,
+      message: `Successfully processed ${results.successful} out of ${results.total} registrations (${results.skipped} skipped, ${results.failed} failed)`,
       results,
     })
   } catch (error) {
