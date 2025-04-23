@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { getRegistrationById, sql } from "@/lib/db"
+import { getCurrentDateString } from "@/lib/date-utils"
 
 export async function POST(request: Request) {
   try {
@@ -19,9 +20,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: "Registration not found" }, { status: 404 })
     }
 
-    // Check if already checked in TODAY for THIS event
-    const today = new Date().toISOString().split("T")[0] // Get current date in YYYY-MM-DD format
+    // Get the current date, considering simulation settings
+    const today = await getCurrentDateString()
+    console.log("Current date (with simulation if enabled):", today)
 
+    // Check if already checked in TODAY for THIS event
     const checkInToday = await sql`
       SELECT * FROM check_in_logs 
       WHERE registration_id = ${registration.id}

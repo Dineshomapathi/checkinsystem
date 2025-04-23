@@ -9,9 +9,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Loader2, Upload, Copy } from "lucide-react"
+import { Loader2, Upload, Copy, Calendar, AlertTriangle } from "lucide-react"
 import { AdminLayout } from "@/components/admin-layout"
 import { PurgeSystemDialog } from "@/components/purge-system-dialog"
+import { Switch } from "@/components/ui/switch"
+import { Slider } from "@/components/ui/slider"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function SettingsPage() {
   const [backgroundImage, setBackgroundImage] = useState<string>("")
@@ -20,6 +23,14 @@ export default function SettingsPage() {
   const [baseUrl, setBaseUrl] = useState("")
   const { toast } = useToast()
   const [isPurgeDialogOpen, setIsPurgeDialogOpen] = useState(false)
+
+  // Simulation settings
+  const [simulationEnabled, setSimulationEnabled] = useState(false)
+  const [dateOffset, setDateOffset] = useState(0)
+  const [currentDate, setCurrentDate] = useState("")
+  const [actualDate, setActualDate] = useState("")
+  const [isLoadingSimulation, setIsLoadingSimulation] = useState(false)
+  const [isSavingSimulation, setIsSavingSimulation] = useState(false)
 
   useEffect(() => {
     // Set base URL
@@ -34,6 +45,9 @@ export default function SettingsPage() {
         if (data.success && data.backgroundUrl) {
           setBackgroundImage(data.backgroundUrl)
         }
+
+        // Load simulation settings
+        await loadSimulationSettings()
       } catch (error) {
         console.error("Error loading settings:", error)
         toast({
@@ -48,6 +62,78 @@ export default function SettingsPage() {
 
     loadSettings()
   }, [toast])
+
+  const loadSimulationSettings = async () => {
+    try {
+      setIsLoadingSimulation(true)
+      const response = await fetch("/api/settings/simulation")
+      const data = await response.json()
+
+      if (data.success) {
+        setSimulationEnabled(data.settings.enabled)
+        setDateOffset(data.settings.dateOffset)
+        setCurrentDate(data.currentDate)
+        setActualDate(data.actualDate)
+      } else {
+        toast({
+          title: "Error",
+          description: data.message || "Failed to load simulation settings",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error loading simulation settings:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load simulation settings",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoadingSimulation(false)
+    }
+  }
+
+  const saveSimulationSettings = async () => {
+    try {
+      setIsSavingSimulation(true)
+      const response = await fetch("/api/settings/simulation", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          enabled: simulationEnabled,
+          dateOffset: dateOffset,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        setCurrentDate(data.currentDate)
+        setActualDate(data.actualDate)
+        toast({
+          title: "Success",
+          description: "Simulation settings updated successfully",
+        })
+      } else {
+        toast({
+          title: "Error",
+          description: data.message || "Failed to update simulation settings",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error saving simulation settings:", error)
+      toast({
+        title: "Error",
+        description: "Failed to update simulation settings",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSavingSimulation(false)
+    }
+  }
 
   const handleBackgroundImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -264,6 +350,7 @@ export default function SettingsPage() {
           <TabsList className="mb-4">
             <TabsTrigger value="appearance">Appearance</TabsTrigger>
             <TabsTrigger value="api">API Endpoints</TabsTrigger>
+            <TabsTrigger value="simulation">Date Simulation</TabsTrigger>
             <TabsTrigger value="general">General</TabsTrigger>
           </TabsList>
 
@@ -406,6 +493,115 @@ export default function SettingsPage() {
                     ))}
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="simulation">
+            <Card>
+              <CardHeader>
+                <CardTitle>Date Simulation</CardTitle>
+                <CardDescription>
+                  Simulate different dates to test multi-day check-in functionality without waiting for the actual next
+                  day.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isLoadingSimulation ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {simulationEnabled && (
+                      <Alert variant="warning">
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertDescription>
+                          Date simulation is currently active. The system is using {currentDate} instead of the actual
+                          date ({actualDate}).
+                        </AlertDescription>
+                      </Alert>
+                    )}
+
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="simulation-toggle">Enable Date Simulation</Label>
+                        <p className="text-sm text-muted-foreground">
+                          When enabled, the system will use a simulated date for check-ins
+                        </p>
+                      </div>
+                      <Switch
+                        id="simulation-toggle"
+                        checked={simulationEnabled}
+                        onCheckedChange={setSimulationEnabled}
+                      />
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex justify-between mb-2">
+                          <Label htmlFor="date-offset">Date Offset (Days)</Label>
+                          <span className="text-sm font-medium">{dateOffset} days</span>
+                        </div>
+                        <Slider
+                          id="date-offset"
+                          min={-30}
+                          max={30}
+                          step={1}
+                          value={[dateOffset]}
+                          onValueChange={(value) => setDateOffset(value[0])}
+                          disabled={!simulationEnabled}
+                        />
+                        <div className="flex justify-between mt-1">
+                          <span className="text-xs text-muted-foreground">-30 days</span>
+                          <span className="text-xs text-muted-foreground">+30 days</span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                        <div>
+                          <Label>Actual Date</Label>
+                          <div className="flex items-center mt-1 p-2 bg-muted rounded-md">
+                            <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
+                            <span>{actualDate}</span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <Label>Simulated Date</Label>
+                          <div className="flex items-center mt-1 p-2 bg-primary/10 rounded-md">
+                            <Calendar className="h-4 w-4 mr-2 text-primary" />
+                            <span className={simulationEnabled ? "font-medium" : "text-muted-foreground"}>
+                              {currentDate}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <Button onClick={saveSimulationSettings} disabled={isSavingSimulation} className="w-full mt-4">
+                        {isSavingSimulation ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          "Save Simulation Settings"
+                        )}
+                      </Button>
+
+                      <div className="mt-6 p-4 border rounded-md bg-muted/50">
+                        <h3 className="text-sm font-medium mb-2">How to test multi-day check-ins:</h3>
+                        <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
+                          <li>Enable date simulation and set the offset to 0 (today)</li>
+                          <li>Scan a QR code to check in an attendee</li>
+                          <li>Try scanning the same QR code again - it should show "already checked in today"</li>
+                          <li>Change the date offset to 1 (tomorrow) and save</li>
+                          <li>Scan the same QR code - it should allow check-in for the new day</li>
+                        </ol>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
