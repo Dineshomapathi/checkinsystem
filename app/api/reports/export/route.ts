@@ -10,64 +10,66 @@ export async function GET(request: Request) {
     const dateFrom = searchParams.get("date_from")
     const dateTo = searchParams.get("date_to")
 
-    console.log("Generating simplified check-in report:", { format, eventId, dateFrom, dateTo })
+    console.log("Generating check-in report:", { format, eventId, dateFrom, dateTo })
 
-    // Simplified query to get only checked-in registrations with their check-in time
+    // Query to get check-ins from the check_in_logs table
     let query = sql`
       SELECT 
         r.full_name,
         r.email,
         r.company,
-        COALESCE(cl.check_in_time, r.check_in_time) as check_in_time
+        cl.check_in_time,
+        e.name as event_name,
+        DATE(cl.check_in_time) as check_in_date
       FROM 
-        registrations r
-      LEFT JOIN (
-        SELECT registration_id, MAX(check_in_time) as check_in_time
-        FROM check_in_logs
-        GROUP BY registration_id
-      ) cl ON r.id = cl.registration_id
-      WHERE COALESCE(cl.check_in_time, r.check_in_time) IS NOT NULL
+        check_in_logs cl
+      JOIN 
+        registrations r ON cl.registration_id = r.id
+      JOIN 
+        events e ON cl.event_id = e.id
+      WHERE 1=1
     `
 
     // Add additional filters if provided
     if (eventId) {
       query = sql`
         ${query} 
-        AND r.id IN (
-          SELECT registration_id FROM event_registrations WHERE event_id = ${eventId}
-        )
+        AND cl.event_id = ${eventId}
       `
     }
 
     if (dateFrom) {
       query = sql`
         ${query} 
-        AND DATE(COALESCE(cl.check_in_time, r.check_in_time)) >= ${dateFrom}
+        AND DATE(cl.check_in_time) >= ${dateFrom}
       `
     }
 
     if (dateTo) {
       query = sql`
         ${query} 
-        AND DATE(COALESCE(cl.check_in_time, r.check_in_time)) <= ${dateTo}
+        AND DATE(cl.check_in_time) <= ${dateTo}
       `
     }
 
     query = sql`
       ${query} 
-      ORDER BY COALESCE(cl.check_in_time, r.check_in_time) DESC
+      ORDER BY cl.check_in_time DESC
     `
 
-    console.log("Executing simplified query")
+    console.log("Executing query")
     const result = await query
     console.log(`Query returned ${result.length} rows`)
 
-    // Format the data for the report - only include essential fields
+    // Format the data for the report
     const reportData = result.map((row) => ({
       Name: row.full_name || "",
       Email: row.email || "",
       Company: row.company || "",
-      "Check-in Time": row.check_in_time ? new Date(row.check_in_time).toLocaleString() : "",
+      Event: row.event_name || "",
+      "Check-in Date": row.check_in_date ? new Date(row.check_in_date).toLocaleDateString() : "",
+      "Check-in Time": row.check_in_time ? new Date(row.check_in_time).toLocaleTimeString() : "",
+      "Full Timestamp": row.check_in_time ? new Date(row.check_in_time).toLocaleString() : "",
     }))
 
     // Generate Excel file

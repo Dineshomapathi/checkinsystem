@@ -19,7 +19,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: "Registration not found" }, { status: 404 })
     }
 
-    // Check if already checked in today
+    // Check if already checked in TODAY for THIS event
     const today = new Date().toISOString().split("T")[0] // Get current date in YYYY-MM-DD format
 
     const checkInToday = await sql`
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           success: false,
-          message: "Already checked in today",
+          message: "Already checked in today. Please come back tomorrow for next check-in.",
           registration: {
             full_name: registration.full_name,
             company: registration.company,
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
       )
     }
 
-    // Add check-in log
+    // Add check-in log for today
     try {
       await sql`
         INSERT INTO check_in_logs (registration_id, event_id, checked_in_by, method, notes)
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
       throw error
     }
 
-    // Only update the registration's checked_in status if it hasn't been checked in before
+    // Update the registration's checked_in status if this is their first check-in ever
     if (!registration.checked_in) {
       try {
         await sql`
