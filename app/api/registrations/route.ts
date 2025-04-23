@@ -69,8 +69,8 @@ export async function POST(request: Request) {
     const eventId = body.event_id
 
     // Validate required fields
-    if (!body.full_name || !body.email) {
-      return NextResponse.json({ success: false, message: "Name and email are required fields" }, { status: 400 })
+    if (!body.email) {
+      return NextResponse.json({ success: false, message: "Email is required" }, { status: 400 })
     }
 
     // Validate event ID

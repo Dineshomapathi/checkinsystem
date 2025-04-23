@@ -174,7 +174,7 @@ export default function ExcelUploadContent() {
                     <strong>Company</strong> - Optional
                   </li>
                   <li>
-                    <strong>Name</strong> - Required
+                    <strong>Name</strong> - Optional
                   </li>
                   <li>
                     <strong>Email</strong> - Required

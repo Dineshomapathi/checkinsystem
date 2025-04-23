@@ -127,10 +127,10 @@ export function RegistrationFormDialog({
 
     try {
       // Validate required fields
-      if (!formData.full_name || !formData.email) {
+      if (!formData.email) {
         toast({
           title: "Error",
-          description: "Name and email are required fields",
+          description: "Email is required",
           variant: "destructive",
         })
         setIsLoading(false)
@@ -232,7 +232,6 @@ export function RegistrationFormDialog({
                 value={formData.full_name}
                 onChange={handleChange}
                 className="col-span-3"
-                required
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">

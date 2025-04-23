@@ -44,9 +44,8 @@ export async function parseExcelFile(file: ArrayBuffer): Promise<{
       }
 
       // Check for required fields
-      if (!registration.name || !registration.email || !registration.hash) {
+      if (!registration.email || !registration.hash) {
         const missingFields = []
-        if (!registration.name) missingFields.push("Name")
         if (!registration.email) missingFields.push("Email")
         if (!registration.hash) missingFields.push("Hash")
 
