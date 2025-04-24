@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import * as XLSX from "xlsx"
-import PDFDocument from "pdfkit"
+import jsPDF from "jspdf"
+import autoTable from "jspdf-autotable"
 
 export async function GET(request: Request) {
   try {
@@ -95,117 +96,91 @@ export async function GET(request: Request) {
         },
       })
     } else if (format === "pdf") {
-      // Create a PDF document
-      const doc = new PDFDocument({ margin: 50 })
-      const chunks: Buffer[] = []
-
-      // Collect PDF data chunks
-      doc.on("data", (chunk) => chunks.push(chunk))
+      // Create a new PDF document (A4 size)
+      const doc = new jsPDF()
 
       // Add title
-      doc.fontSize(20).text("Check-in Report", { align: "center" })
-      doc.moveDown()
+      doc.setFontSize(18)
+      doc.text("Check-in Report", 105, 15, { align: "center" })
 
       // Add filters information
-      doc.fontSize(12)
-      if (eventId) {
-        const eventName = result.length > 0 ? result[0].event_name : "Selected Event"
-        doc.text(`Event: ${eventName}`)
+      doc.setFontSize(10)
+      let yPos = 25
+
+      if (eventId && result.length > 0) {
+        doc.text(`Event: ${result[0].event_name}`, 14, yPos)
+        yPos += 5
       }
-      if (dateFrom) doc.text(`From: ${dateFrom}`)
-      if (dateTo) doc.text(`To: ${dateTo}`)
-      if (eventId || dateFrom || dateTo) doc.moveDown()
+
+      if (dateFrom) {
+        doc.text(`From: ${dateFrom}`, 14, yPos)
+        yPos += 5
+      }
+
+      if (dateTo) {
+        doc.text(`To: ${dateTo}`, 14, yPos)
+        yPos += 5
+      }
 
       // Add report generation timestamp
-      doc.fontSize(10).text(`Report generated: ${new Date().toLocaleString()}`)
-      doc.moveDown(2)
+      doc.text(`Report generated: ${new Date().toLocaleString()}`, 14, yPos)
+      yPos += 10
 
-      // Define table layout
-      const tableTop = doc.y
-      const tableHeaders = ["Name", "Email", "Company", "Event", "Check-in Date/Time"]
-      const columnWidths = [120, 150, 100, 100, 120]
-      const tableWidth = columnWidths.reduce((sum, width) => sum + width, 0)
+      // Prepare data for the table
+      const tableHeaders = [["Name", "Email", "Company", "Event", "Check-in Date/Time"]]
+      const tableData = reportData.map((row) => [
+        row.Name,
+        row.Email,
+        row.Company,
+        row.Event,
+        `${row["Check-in Date"]} ${row["Check-in Time"]}`,
+      ])
 
-      // Draw table headers
-      let currentX = 50
-      doc.font("Helvetica-Bold")
-      tableHeaders.forEach((header, i) => {
-        doc.text(header, currentX, tableTop, { width: columnWidths[i], align: "left" })
-        currentX += columnWidths[i]
-      })
-      doc.moveDown()
-
-      // Draw horizontal line
-      doc
-        .moveTo(50, doc.y)
-        .lineTo(50 + tableWidth, doc.y)
-        .stroke()
-      doc.moveDown(0.5)
-
-      // Draw table rows
-      doc.font("Helvetica")
-      reportData.forEach((row, rowIndex) => {
-        // Check if we need a new page
-        if (doc.y > 700) {
-          doc.addPage()
-          doc.y = 50
-        }
-
-        currentX = 50
-        const rowData = [row.Name, row.Email, row.Company, row.Event, `${row["Check-in Date"]} ${row["Check-in Time"]}`]
-
-        // Get the maximum height needed for this row
-        let maxHeight = 0
-        rowData.forEach((cell, i) => {
-          const cellHeight = doc.heightOfString(cell, { width: columnWidths[i] })
-          if (cellHeight > maxHeight) maxHeight = cellHeight
-        })
-
-        const rowY = doc.y
-
-        // Draw each cell in the row
-        rowData.forEach((cell, i) => {
-          doc.text(cell, currentX, rowY, { width: columnWidths[i], align: "left" })
-          currentX += columnWidths[i]
-        })
-
-        // Move down by the maximum height
-        doc.y = rowY + maxHeight + 5
-
-        // Draw a light gray line after each row (except the last)
-        if (rowIndex < reportData.length - 1) {
-          doc.strokeColor("#dddddd")
-          doc
-            .moveTo(50, doc.y - 2)
-            .lineTo(50 + tableWidth, doc.y - 2)
-            .stroke()
-          doc.strokeColor("black")
-        }
+      // Add the table to the PDF
+      autoTable(doc, {
+        head: tableHeaders,
+        body: tableData,
+        startY: yPos,
+        headStyles: {
+          fillColor: [66, 139, 202],
+          textColor: 255,
+          fontStyle: "bold",
+        },
+        alternateRowStyles: {
+          fillColor: [240, 240, 240],
+        },
+        margin: { top: 15 },
+        styles: {
+          overflow: "linebreak",
+          cellPadding: 3,
+          fontSize: 9,
+        },
+        columnStyles: {
+          0: { cellWidth: 40 }, // Name
+          1: { cellWidth: 50 }, // Email
+          2: { cellWidth: 30 }, // Company
+          3: { cellWidth: 30 }, // Event
+          4: { cellWidth: 40 }, // Check-in Date/Time
+        },
       })
 
       // Add page numbers
-      const totalPages = doc.bufferedPageRange().count
-      for (let i = 0; i < totalPages; i++) {
-        doc.switchToPage(i)
-        doc.fontSize(8).text(`Page ${i + 1} of ${totalPages}`, 50, doc.page.height - 50, { align: "center" })
+      const pageCount = doc.internal.getNumberOfPages()
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i)
+        doc.setFontSize(8)
+        doc.text(`Page ${i} of ${pageCount}`, 105, doc.internal.pageSize.height - 10, { align: "center" })
       }
 
-      // Finalize the PDF
-      doc.end()
+      // Generate PDF buffer
+      const pdfBuffer = doc.output("arraybuffer")
 
-      // Return the PDF when it's ready
-      return new Promise<NextResponse>((resolve) => {
-        doc.on("end", () => {
-          const pdfBuffer = Buffer.concat(chunks)
-          resolve(
-            new NextResponse(pdfBuffer, {
-              headers: {
-                "Content-Type": "application/pdf",
-                "Content-Disposition": "attachment; filename=check-in-report.pdf",
-              },
-            }),
-          )
-        })
+      // Return the PDF
+      return new NextResponse(Buffer.from(pdfBuffer), {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": "attachment; filename=check-in-report.pdf",
+        },
       })
     } else {
       // Default to JSON
