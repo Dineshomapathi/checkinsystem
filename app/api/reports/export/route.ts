@@ -63,16 +63,33 @@ export async function GET(request: Request) {
     const result = await query
     console.log(`Query returned ${result.length} rows`)
 
-    // Format the data for the report
-    const reportData = result.map((row) => ({
-      Name: row.full_name || "",
-      Email: row.email || "",
-      Company: row.company || "",
-      Event: row.event_name || "",
-      "Check-in Date": row.check_in_date ? new Date(row.check_in_date).toLocaleDateString() : "",
-      "Check-in Time": row.check_in_time ? new Date(row.check_in_time).toLocaleTimeString() : "",
-      "Full Timestamp": row.check_in_time ? new Date(row.check_in_time).toLocaleString() : "",
-    }))
+    // Format the data for the report with Malaysia timezone (GMT+8)
+    const reportData = result.map((row) => {
+      // Convert UTC timestamp to Malaysia time (GMT+8)
+      const checkInTime = row.check_in_time ? new Date(row.check_in_time) : null
+
+      // Add 8 hours to convert from UTC to Malaysia time
+      if (checkInTime) {
+        checkInTime.setHours(checkInTime.getHours() + 8)
+      }
+
+      return {
+        Name: row.full_name || "",
+        Email: row.email || "",
+        Company: row.company || "",
+        Event: row.event_name || "",
+        "Check-in Date": checkInTime ? checkInTime.toLocaleDateString("en-MY") : "",
+        "Check-in Time": checkInTime
+          ? checkInTime.toLocaleTimeString("en-MY", {
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+              hour12: true,
+            })
+          : "",
+        "Full Timestamp": checkInTime ? checkInTime.toLocaleString("en-MY") : "",
+      }
+    })
 
     // Generate report based on format
     if (format === "excel") {
@@ -122,8 +139,10 @@ export async function GET(request: Request) {
         yPos += 5
       }
 
-      // Add report generation timestamp
-      doc.text(`Report generated: ${new Date().toLocaleString()}`, 14, yPos)
+      // Add report generation timestamp (in Malaysia time)
+      const now = new Date()
+      now.setHours(now.getHours() + 8) // Convert to Malaysia time
+      doc.text(`Report generated: ${now.toLocaleString("en-MY")} (Malaysia Time)`, 14, yPos)
       yPos += 10
 
       // Prepare data for the table
