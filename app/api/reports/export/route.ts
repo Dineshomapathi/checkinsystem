@@ -63,6 +63,33 @@ export async function GET(request: Request) {
     const result = await query
     console.log(`Query returned ${result.length} rows`)
 
+    // Get summary statistics
+    let statsQuery = sql`
+      SELECT 
+        COUNT(*) as total_registrations,
+        SUM(CASE WHEN checked_in = true THEN 1 ELSE 0 END) as checked_in_count,
+        SUM(CASE WHEN checked_in = false OR checked_in IS NULL THEN 1 ELSE 0 END) as not_checked_in_count
+      FROM 
+        registrations
+      WHERE 1=1
+    `
+
+    // Add event filter if provided
+    if (eventId) {
+      statsQuery = sql`
+        ${statsQuery}
+        AND id IN (
+          SELECT registration_id 
+          FROM event_registrations 
+          WHERE event_id = ${eventId}
+        )
+      `
+    }
+
+    // Execute the stats query
+    const statsResult = await statsQuery
+    const stats = statsResult[0]
+
     // Format the data for the report with Malaysia timezone (GMT+8)
     const reportData = result.map((row) => {
       // Convert UTC timestamp to Malaysia time (GMT+8)
@@ -98,6 +125,19 @@ export async function GET(request: Request) {
 
       // Convert data to worksheet
       const ws = XLSX.utils.json_to_sheet(reportData)
+
+      // Add summary statistics at the end
+      const lastRow = reportData.length + 2
+      XLSX.utils.sheet_add_aoa(
+        ws,
+        [
+          ["Summary Statistics:"],
+          [`Total Registrations: ${stats.total_registrations}`],
+          [`Checked-in: ${stats.checked_in_count}`],
+          [`Not Checked-in: ${stats.not_checked_in_count}`],
+        ],
+        { origin: { r: lastRow, c: 0 } },
+      )
 
       // Add the worksheet to the workbook
       XLSX.utils.book_append_sheet(wb, ws, "Check-ins")
@@ -183,6 +223,16 @@ export async function GET(request: Request) {
         },
       })
 
+      // Add summary statistics at the end
+      const finalY = (doc as any).lastAutoTable.finalY || doc.internal.pageSize.height - 40
+      doc.setFontSize(12)
+      doc.setFont("helvetica", "bold")
+      doc.text("Summary:", 14, finalY + 10)
+      doc.setFont("helvetica", "normal")
+      doc.text(`Total Registrations: ${stats.total_registrations}`, 14, finalY + 20)
+      doc.text(`Checked-in: ${stats.checked_in_count}`, 14, finalY + 30)
+      doc.text(`Not Checked-in: ${stats.not_checked_in_count}`, 14, finalY + 40)
+
       // Add page numbers
       const pageCount = doc.internal.getNumberOfPages()
       for (let i = 1; i <= pageCount; i++) {
@@ -206,6 +256,11 @@ export async function GET(request: Request) {
       return NextResponse.json({
         success: true,
         data: reportData,
+        summary: {
+          totalRegistrations: stats.total_registrations,
+          checkedIn: stats.checked_in_count,
+          notCheckedIn: stats.not_checked_in_count,
+        },
       })
     }
   } catch (error) {
