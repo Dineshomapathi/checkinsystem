@@ -7,14 +7,16 @@ import { Button } from "@/components/ui/button"
 import { EventSelector } from "@/components/event-selector"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
-import { FileSpreadsheet, Download } from "lucide-react"
+import { FileSpreadsheet, FileText } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export default function ReportsPage() {
   const [eventId, setEventId] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
+  const [reportFormat, setReportFormat] = useState("excel")
   const { toast } = useToast()
 
   const generateReport = async () => {
@@ -22,7 +24,7 @@ export default function ReportsPage() {
 
     try {
       // Build the URL with query parameters
-      let url = `/api/reports/export?format=excel`
+      let url = `/api/reports/export?format=${reportFormat}`
 
       if (eventId) {
         url += `&event_id=${eventId}`
@@ -41,7 +43,7 @@ export default function ReportsPage() {
 
       toast({
         title: "Success",
-        description: "Excel report is being downloaded",
+        description: `${reportFormat.toUpperCase()} report is being downloaded`,
       })
     } catch (error) {
       toast({
@@ -82,10 +84,24 @@ export default function ReportsPage() {
                 </div>
               </div>
 
+              <div className="mt-4">
+                <Label>Report Format</Label>
+                <Tabs defaultValue="excel" className="mt-2" onValueChange={setReportFormat}>
+                  <TabsList className="grid w-full max-w-md grid-cols-2">
+                    <TabsTrigger value="excel">Excel</TabsTrigger>
+                    <TabsTrigger value="pdf">PDF</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+
               <div className="flex flex-col md:flex-row gap-4 mt-6">
                 <Button onClick={generateReport} disabled={isGenerating} className="flex-1">
-                  <FileSpreadsheet className="mr-2 h-4 w-4" />
-                  {isGenerating ? "Generating..." : "Export to Excel"}
+                  {reportFormat === "excel" ? (
+                    <FileSpreadsheet className="mr-2 h-4 w-4" />
+                  ) : (
+                    <FileText className="mr-2 h-4 w-4" />
+                  )}
+                  {isGenerating ? "Generating..." : `Export to ${reportFormat.toUpperCase()}`}
                 </Button>
               </div>
             </div>
@@ -102,17 +118,30 @@ export default function ReportsPage() {
               <div className="border rounded-lg p-4">
                 <h3 className="text-lg font-medium mb-2">Today's Check-ins</h3>
                 <p className="text-sm text-muted-foreground mb-4">List of all registrations checked in today.</p>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => {
-                    const today = new Date().toISOString().split("T")[0]
-                    window.location.href = `/api/reports/export?format=excel&date_from=${today}&date_to=${today}`
-                  }}
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  Download Excel
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => {
+                      const today = new Date().toISOString().split("T")[0]
+                      window.location.href = `/api/reports/export?format=excel&date_from=${today}&date_to=${today}`
+                    }}
+                  >
+                    <FileSpreadsheet className="mr-2 h-4 w-4" />
+                    Excel
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => {
+                      const today = new Date().toISOString().split("T")[0]
+                      window.location.href = `/api/reports/export?format=pdf&date_from=${today}&date_to=${today}`
+                    }}
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    PDF
+                  </Button>
+                </div>
               </div>
 
               <div className="border rounded-lg p-4">
@@ -120,16 +149,28 @@ export default function ReportsPage() {
                 <p className="text-sm text-muted-foreground mb-4">
                   Complete list of all checked-in registrations with timestamps.
                 </p>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => {
-                    window.location.href = `/api/reports/export?format=excel`
-                  }}
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  Download Excel
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => {
+                      window.location.href = `/api/reports/export?format=excel`
+                    }}
+                  >
+                    <FileSpreadsheet className="mr-2 h-4 w-4" />
+                    Excel
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => {
+                      window.location.href = `/api/reports/export?format=pdf`
+                    }}
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    PDF
+                  </Button>
+                </div>
               </div>
             </div>
           </CardContent>
